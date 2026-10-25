@@ -1,0 +1,29 @@
+{
+  "name": "askwire",
+  "version": "0.1.0",
+  "description": "Find out whether your MCP server's elicitation ever reaches a human: drives the real Claude Code, Codex and opencode installed on your machine and reports what they answered.",
+  "type": "module",
+  "bin": { "askwire": "dist/cli.js" },
+  "files": ["dist", "README.md", "LICENSE"],
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && chmod +x dist/cli.js",
+    "prepare": "tsc -p tsconfig.json && chmod +x dist/cli.js",
+    "test": "npm run build && node --test test/",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "keywords": ["mcp", "model-context-protocol", "elicitation", "claude-code", "codex", "opencode", "mcp-server", "testing", "ai-agents"],
+  "repository": { "type": "git", "url": "git+https://github.com/Blackman99/askwire.git" },
+  "homepage": "https://blackman99.github.io/askwire/",
+  "bugs": "https://github.com/Blackman99/askwire/issues",
+  "license": "MIT",
+  "author": "Blackman99",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.0",
+    "typescript": "^5.6.0"
+  }
+}
