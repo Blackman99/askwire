@@ -1,0 +1,60 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 2 * * *" # daily: catch client releases that change elicitation behaviour
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    strategy:
+      matrix:
+        node: [20, 22, 24]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  real-clients:
+    # Runs the released CLIs of Claude Code, Codex and opencode against the probe.
+    # No API keys: the model is askwire's local stand-in.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq tmux
+      - run: npm ci
+      - run: npm install -g @anthropic-ai/claude-code@latest @openai/codex@latest opencode-ai@latest
+      - run: node dist/cli.js clients
+      - name: headless
+        run: |
+          node dist/cli.js --markdown | tee headless.md
+          node dist/cli.js --json > headless.json
+          node scripts/assert-run.mjs headless.json
+      - name: interactive (tmux)
+        run: |
+          node dist/cli.js --tui --json > tui.json
+          node scripts/assert-run.mjs tui.json
+          node dist/cli.js --tui --markdown | tee tui.md
+      - name: summary
+        if: always()
+        run: |
+          { echo "### headless"; cat headless.md || true; echo; echo "### interactive"; cat tui.md || true; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: askwire-results
+          path: "*.json"

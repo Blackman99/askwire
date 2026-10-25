@@ -69,7 +69,7 @@ export function clientVerdict(run: ClientRun): { word: string; tone: "bad" | "go
   if (v.includes("hung")) return { word: "QUESTION NEVER ANSWERED", tone: "bad" };
   if (claims && v.includes("no-human")) return { word: "CLAIMS SUPPORT · ANSWERS WITHOUT A HUMAN", tone: "bad" };
   if (v.includes("broken")) return { word: "ADVERTISED BUT ERRORS", tone: "bad" };
-  if (claims && v.every((x) => x === "human" || x === "honest")) return { word: "SHOWN TO A HUMAN", tone: "good" };
+  if (claims && v.every((x) => x === "human" || x === "honest")) return { word: "SHOWN ON SCREEN", tone: "good" };
   if (!claims && v.every((x) => x === "honest")) return { word: "NO SUPPORT · SAYS SO", tone: "warn" };
   return { word: "INCOMPLETE", tone: "dim" };
 }

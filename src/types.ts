@@ -26,6 +26,8 @@ export interface ScenarioResult {
   seen?: boolean;
   /** ms from request sent to nonce visible on screen (TUI only) */
   seenAfterMs?: number;
+  /** TUI mode: askwire pressed Esc while this question was on screen */
+  escPressed?: boolean;
 }
 
 export interface ClientRun {

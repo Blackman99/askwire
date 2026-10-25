@@ -51,10 +51,11 @@ export async function runClient(o: RunOptions): Promise<ClientRun> {
     advertised: { form: false, url: false, raw: null }, results: [], logDir: dir,
   };
   const seen = new Map<Scenario, number>();
+  const escs = new Set<Scenario>();
   try {
     if (o.mode === "headless") await headless(o, prep, dir);
     else {
-      const problem = await tui(o, prep, dir, log, seen);
+      const problem = await tui(o, prep, dir, log, seen, escs);
       if (problem) run.problem = problem;
     }
   } finally {
@@ -76,7 +77,7 @@ export async function runClient(o: RunOptions): Promise<ClientRun> {
     if (o.mode !== "tui") return r;
     const sent = events.find((e) => e.ev === "sent" && e.scenario === r.scenario);
     const at = seen.get(r.scenario);
-    return { ...r, seen: at !== undefined, seenAfterMs: at !== undefined && sent ? Math.max(0, at - sent.t) : undefined };
+    return { ...r, seen: at !== undefined, seenAfterMs: at !== undefined && sent ? Math.max(0, at - sent.t) : undefined, escPressed: escs.has(r.scenario) };
   });
   if (!run.problem && !events.some((e) => e.ev === "initialized")) {
     const tail = out.trim().split("\n").slice(-3).join(" ").slice(0, 200);
@@ -103,7 +104,7 @@ function tmux(args: string[], sock: string): string {
   return execFileSync("tmux", ["-L", sock, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
 }
 
-async function tui(o: RunOptions, prep: { argv: string[]; env: Record<string, string>; cwd: string }, dir: string, log: string, seen: Map<Scenario, number>): Promise<string | undefined> {
+async function tui(o: RunOptions, prep: { argv: string[]; env: Record<string, string>; cwd: string }, dir: string, log: string, seen: Map<Scenario, number>, escs: Set<Scenario>): Promise<string | undefined> {
   try { execFileSync("tmux", ["-V"], { stdio: "ignore" }); } catch { return "--tui needs tmux on PATH"; }
   const sock = `askwire-${process.pid}-${o.adapter.id}`;
   const launch = path.join(dir, "launch.sh");
@@ -111,12 +112,14 @@ async function tui(o: RunOptions, prep: { argv: string[]; env: Record<string, st
     "#!/bin/sh",
     "# re-run this to watch the same client session yourself",
     `cd ${shq(prep.cwd)} || exit 1`,
-    `exec env -i ${Object.entries(prep.env).map(([k, v]) => `${k}=${shq(v)}`).join(" ")} ${prep.argv.map(shq).join(" ")} 2>>${shq(path.join(dir, "client.out"))}`,
+    // stderr must stay on the terminal: some clients (codex) refuse to start their TUI otherwise
+    `exec env -i ${Object.entries({ ...prep.env, TERM: "xterm-256color" }).map(([k, v]) => `${k}=${shq(v)}`).join(" ")} ${prep.argv.map(shq).join(" ")}`,
     "",
   ].join("\n"), { mode: 0o755 });
   tmux(["new-session", "-d", "-s", "aw", "-x", "160", "-y", "48", `sh ${shq(launch)}`], sock);
+  try { tmux(["set-option", "-t", "aw", "remain-on-exit", "on"], sock); } catch { /* exited already */ }
   const screen = () => { try { return tmux(["capture-pane", "-p", "-t", "aw"], sock); } catch { return ""; } };
-  const alive = () => { try { tmux(["has-session", "-t", "aw"], sock); return true; } catch { return false; } };
+  const alive = () => { try { return tmux(["display-message", "-p", "-t", "aw", "#{pane_dead}"], sock).trim() !== "1"; } catch { return false; } };
   const key = (...k: string[]) => { try { tmux(["send-keys", "-t", "aw", ...k], sock); } catch { /* gone */ } };
   const start = Date.now();
   let prompted = false, escAt = 0, lastScreen = "", stableSince = Date.now();
@@ -125,7 +128,7 @@ async function tui(o: RunOptions, prep: { argv: string[]; env: Record<string, st
   try {
     while (true) {
       await sleep(250);
-      if (!alive()) { problem = problem ?? "the client exited early (see client.out)"; break; }
+      if (!alive()) { lastScreen = screen() || lastScreen; problem = problem ?? `the client exited early; last screen: ${lastScreen.trim().split("\n").filter(Boolean).slice(-2).join(" ").slice(0, 200) || "(empty)"}`; break; }
       const evs = readLog(log);
       const scr = screen();
       if (scr !== lastScreen) { lastScreen = scr; stableSince = Date.now(); }
@@ -146,7 +149,7 @@ async function tui(o: RunOptions, prep: { argv: string[]; env: Record<string, st
           o.onStep?.(`${pend.scenario}: question is on screen`);
         }
         if (seen.has(pend.scenario) && o.answer === "esc" && Date.now() - seen.get(pend.scenario)! > 1500 && Date.now() - escAt > 2000) {
-          key("Escape"); escAt = Date.now();
+          key("Escape"); escAt = Date.now(); escs.add(pend.scenario);
         }
       }
       if (done(evs)) { await sleep(500); break; }

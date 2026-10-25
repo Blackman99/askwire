@@ -17,11 +17,12 @@ export function rowText(r: ScenarioResult, run: ClientRun): { action: string; de
       const spec = o.action === "decline" ? " (spec: decline = the user explicitly said no)" : "";
       let detail: string;
       if (run.mode === "headless") detail = `in ${fmtMs(o.ms)} · no terminal, so the client answered, not a person${spec}`;
-      else if (r.seen) detail = `in ${fmtMs(o.ms)} · question was on screen after ${fmtMs(r.seenAfterMs ?? 0)}${o.action === "cancel" ? ", then askwire pressed Esc" : ""}`;
+      else if (r.seen && r.escPressed) detail = `in ${fmtMs(o.ms)} · on screen after ${fmtMs(r.seenAfterMs ?? 0)}, askwire pressed Esc${o.action === "decline" ? " (spec: dismissing without a choice is cancel, not decline)" : o.action === "accept" ? " and the client still accepted" : ""}`;
+      else if (r.seen) detail = `in ${fmtMs(o.ms)} · on screen after ${fmtMs(r.seenAfterMs ?? 0)}`;
       else detail = `in ${fmtMs(o.ms)} · the question never appeared on screen${spec}`;
       return { action: o.action, detail };
     }
-    case "error": return { action: "error", detail: `${o.code ?? ""} ${o.message}`.trim().slice(0, 120) + ` (after ${fmtMs(o.ms)})` };
+    case "error": return { action: "error", detail: `${o.code ?? ""} ${o.message.replace(/^MCP error -?\d+:\s*/, "")}`.trim().slice(0, 120) + ` (after ${fmtMs(o.ms)})` };
     case "timeout": return { action: "silence", detail: `no answer within ${fmtMs(o.ms)}; the tool call just waits` };
     case "not-advertised": return { action: "—", detail: "not advertised at initialize, so nothing was sent" };
     case "not-needed": return { action: "—", detail: "skipped: client advertises elicitation" };
@@ -73,7 +74,7 @@ export function takeaways(runs: ClientRun[]): string[] {
   if (answered.some((r) => r.mode === "headless" && r.results.some((x) => x.outcome.kind === "answered")))
     t.push("Advertising `elicitation` does not mean a person is there. Headless runs answer for them.");
   if (actions.has("decline") && actions.has("cancel"))
-    t.push("Clients disagree on decline vs cancel when nobody is there. Treat both as \"do not proceed\".");
+    t.push("decline and cancel are not used consistently across clients. Treat both as \"do not proceed\".");
   if (runs.some((r) => r.results.some((x) => x.outcome.kind === "timeout")))
     t.push("At least one client never answers. Always pass a timeout to elicitInput.");
   t.push("Only `accept` with the content you asked for counts as consent. Hooks can accept too, so log it.");
