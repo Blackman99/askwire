@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+
+- Site: blog article "Decline vs cancel, and who is actually answering" in English and Chinese, linked from the README, landing page and docs.
+
 ## [0.1.0] - 2026-10-25
 
 First release.
