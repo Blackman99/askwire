@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>askwire docs · install, usage, configuration, reference, FAQ</title>
-<meta name="description" content="How to run askwire against Claude Code, Codex and opencode, what every flag does, how to read the verdicts, the JSON format, exit codes and the FAQ.">
+<meta name="description" content="How to run askwire against Claude Code, Codex, opencode and Gemini CLI, what every flag does, how to read the verdicts, the JSON format, exit codes and the FAQ.">
 <link rel="canonical" href="https://blackman99.github.io/askwire/docs/">
 <link rel="icon" href="../img/favicon.svg" type="image/svg+xml">
 <meta property="og:type" content="article">
@@ -53,17 +53,18 @@
 <pre class="code">npm install -g https://github.com/Blackman99/askwire/releases/download/v0.1.0/askwire-0.1.0.tgz
 askwire --version</pre>
     <p>askwire only tests clients that are already installed. To try one without touching your global install, put it in a scratch folder and point at it with <code>--bin</code>:</p>
-<pre class="code">npm install --prefix /tmp/clients @anthropic-ai/claude-code @openai/codex opencode-ai
+<pre class="code">npm install --prefix /tmp/clients @anthropic-ai/claude-code @openai/codex opencode-ai @google/gemini-cli
 askwire --bin claude=/tmp/clients/node_modules/.bin/claude \
         --bin codex=/tmp/clients/node_modules/.bin/codex \
-        --bin opencode=/tmp/clients/node_modules/.bin/opencode</pre>
+        --bin opencode=/tmp/clients/node_modules/.bin/opencode \
+        --bin gemini=/tmp/clients/node_modules/.bin/gemini</pre>
     <p><code>--tui</code> also needs <code>tmux</code> (<code>apt install tmux</code>, <code>brew install tmux</code>). Real-client runs are tested on Linux in CI and the unit tests also run on macOS. Windows is untested so far.</p>
   </section>
 
   <section id="usage">
     <h2><span class="cue-no">2</span>Usage</h2>
     <h3>Headless (the default)</h3>
-    <p>Runs <code>claude -p</code>, <code>codex exec</code> and <code>opencode run</code>: the way agents run in CI, scripts and sub-agents. No terminal exists, so any answer you get came from the client.</p>
+    <p>Runs <code>claude -p</code>, <code>codex exec</code> and <code>opencode run</code> and <code>gemini -p</code>: the way agents run in CI, scripts and sub-agents. No terminal exists, so any answer you get came from the client.</p>
 <pre class="code">askwire                    <span class="d"># every supported client found on PATH</span>
 askwire claude codex       <span class="d"># just these</span></pre>
     <h3>Interactive (<code>--tui</code>)</h3>
@@ -87,7 +88,7 @@ tail -f /tmp/askwire.jsonl</pre>
     <table class="flags">
       <thead><tr><th>flag</th><th>default</th><th>what it does</th></tr></thead>
       <tbody>
-        <tr><td><code>[clients...]</code></td><td>all found</td><td>Any of <code>claude</code>, <code>codex</code>, <code>opencode</code>. Naming a client that is not installed is reported as a problem, not skipped.</td></tr>
+        <tr><td><code>[clients...]</code></td><td>all found</td><td>Any of <code>claude</code>, <code>codex</code>, <code>opencode</code>, <code>gemini</code>. Naming a client that is not installed is reported as a problem, not skipped.</td></tr>
         <tr><td><code>--tui</code></td><td>off</td><td>Run the interactive UI in tmux and check the question is on screen.</td></tr>
         <tr><td><code>--scenarios</code></td><td><code>form,url,unadvertised</code></td><td>Which probes to send. <code>unadvertised</code> is only sent to a client that did not advertise elicitation.</td></tr>
         <tr><td><code>--timeout</code></td><td><code>20</code> (server: <code>120</code>)</td><td>Seconds the probe waits for each answer before logging a timeout.</td></tr>

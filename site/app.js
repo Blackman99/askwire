@@ -101,11 +101,13 @@
       claude: { cmd: "-P", ans: "cancel", ms: "4 ms", note: "answered by the client · curtain stayed down", tone: "" },
       codex: { cmd: "EXEC", ans: "decline", ms: "2 ms", note: "spec: decline = the user said no", tone: "" },
       opencode: { cmd: "RUN", ans: "not advertised", ms: "", note: "nothing sent · -32601 if you try", tone: "no" },
+      gemini: { cmd: "-P", ans: "not advertised", ms: "", note: "nothing sent · -32601 if you try", tone: "no" },
     },
     tui: {
       claude: { cmd: "INTERACTIVE", ans: "cancel", ms: "1.8 s", note: "on screen in ~120 ms · then Esc", tone: "ok" },
       codex: { cmd: "INTERACTIVE", ans: "decline", ms: "2.1 s", note: "url prompt, Esc · spec says cancel", tone: "warn" },
       opencode: { cmd: "INTERACTIVE", ans: "not advertised", ms: "", note: "nothing sent · -32601 if you try", tone: "no" },
+      gemini: { cmd: "INTERACTIVE", ans: "not advertised", ms: "", note: "nothing sent · -32601 if you try", tone: "no" },
     },
   };
   const SCREENS = {
@@ -134,7 +136,7 @@
     el.innerHTML = `<span class="k ${r.tone}">${r.ans}</span>${r.ms ? ` ${r.ms}` : ""}<small>${r.note}</small>`;
   }
   function reset() {
-    ["claude", "codex", "opencode"].forEach((c) => { lamp(c, "red", false); lamp(c, "green", false); setAnswer(c, null); $(`#${c}-cmd`).textContent = RUNS[mode][c].cmd; });
+    ["claude", "codex", "opencode", "gemini"].forEach((c) => { lamp(c, "red", false); lamp(c, "green", false); setAnswer(c, null); $(`#${c}-cmd`).textContent = RUNS[mode][c].cmd; });
   }
   async function blinkWhile(c, promise, id) {
     let on = true, done = false;
@@ -163,7 +165,7 @@
   }
 
   async function runHeadless(id) {
-    say("STANDBY · elicitation/create goes to all three clients");
+    say("STANDBY · elicitation/create goes to all four clients");
     const jobs = ["claude", "codex"].map(async (c, i) => {
       await sleep(i * 260);
       const trip = (async () => { await packet(c, true, 900); ripple(.5); await sleep(reduce ? 0 : 250); await packet(c, false, 600); })();
@@ -171,13 +173,13 @@
       if (id !== runId) return;
       lamp(c, "green", true); setAnswer(c, RUNS.headless[c]);
     });
-    (async () => { await sleep(520); if (id === runId) setAnswer("opencode", RUNS.headless.opencode); })();
+    (async () => { await sleep(520); if (id === runId) { setAnswer("opencode", RUNS.headless.opencode); setAnswer("gemini", RUNS.headless.gemini); } })();
     await Promise.all(jobs);
     if (id === runId) say("Two answers in under 5 ms, both from the client itself. The curtain never went up: nobody was asked.");
   }
 
   async function runTui(id) {
-    setAnswer("opencode", RUNS.tui.opencode);
+    setAnswer("opencode", RUNS.tui.opencode); setAnswer("gemini", RUNS.tui.gemini);
     for (const c of ["claude", "codex"]) {
       if (id !== runId) return;
       say(`STANDBY · ${c} draws the question in its terminal`);

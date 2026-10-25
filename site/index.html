@@ -98,6 +98,15 @@
         </div>
         <p class="answer" id="opencode-ans">&nbsp;</p>
       </article>
+      <article class="cue" data-client="gemini">
+        <span class="wire" aria-hidden="true"><i class="packet"></i></span>
+        <div class="panel">
+          <span class="lamp red"></span><span class="lamp green"></span>
+          <p class="plate">GEMINI<span id="gemini-cmd">-P</span></p>
+          <p class="ver">0.65.0 · not advertised</p>
+        </div>
+        <p class="answer" id="gemini-ans">&nbsp;</p>
+      </article>
     </div>
     <p class="desk-note">Replay of real runs on 2026-10-25, slowed down so you can watch. The millisecond figures are what the probe server logged. Reproduced on a clean GitHub runner in <a href="https://github.com/Blackman99/askwire/actions/workflows/ci.yml">CI</a>.</p>
   </section>
@@ -122,7 +131,7 @@
     <p>No account and no API key. askwire points each client at a local stand-in model that calls the probe tools, so nothing leaves your machine and your own client settings are never read or changed.</p>
     <div class="cmd wide"><code>npx github:Blackman99/askwire</code><button type="button" class="copy" data-copy="npx github:Blackman99/askwire">copy</button></div>
     <pre class="tty" aria-label="Real askwire output"><span class="b">askwire</span> 0.1.0 <span class="d">·</span> does your MCP server's question reach a human?
-<span class="d">probe AW-CRJL · 2026-10-25 10:28 UTC+08:00 · 3 client runs</span>
+<span class="d">probe AW-CRJL · 2026-10-25 10:28 UTC+08:00 · 4 client runs</span>
 
 <span class="b">claude 2.1.310</span>  <span class="d">claude -p</span>
   <span class="d">│</span> initialize   advertises elicitation: form + url
@@ -139,6 +148,11 @@
 <span class="b">opencode 1.19.4</span>  <span class="d">opencode run</span>
   <span class="d">│</span> initialize   <span class="y">does not advertise elicitation</span>
   <span class="d">│</span> unadvertised error    -32601 Method not found (after 5 ms)
+  <span class="d">└</span> <span class="d">NO SUPPORT · SAYS SO</span>
+
+<span class="b">gemini 0.65.0</span>  <span class="d">gemini -p</span>
+  <span class="d">│</span> initialize   <span class="y">does not advertise elicitation</span>
+  <span class="d">│</span> unadvertised error    -32601 Method not found (after 4 ms)
   <span class="d">└</span> <span class="d">NO SUPPORT · SAYS SO</span></pre>
     <p class="small">Add <code>--tui</code> to drive the interactive UIs in tmux and check that the question is really drawn on screen. <code>--markdown</code> prints a table for an issue, <code>--json</code> prints everything.</p>
   </section>
@@ -178,7 +192,7 @@ if (r.action !== "accept" || !r.content?.confirm) {
     <h2>How the probe works</h2>
     <ul class="how">
       <li><b>Probe server.</b> A stdio MCP server with three tools. Each one sends a raw <code>elicitation/create</code> (form, url, and one sent to a client that never advertised it) and logs the client's capabilities, the answer and the round trip in milliseconds.</li>
-      <li><b>Stand-in model.</b> A local endpoint that speaks the Anthropic Messages, OpenAI Responses and Chat Completions formats just well enough to call those tools in order. Every client gets its own temporary home and config.</li>
+      <li><b>Stand-in model.</b> A local endpoint that speaks the Anthropic Messages, OpenAI Responses, Chat Completions and Gemini formats just well enough to call those tools in order. Every client gets its own temporary home and config.</li>
       <li><b>Screen check.</b> With <code>--tui</code> the client runs in a private tmux server. askwire watches for the probe's nonce on screen, records when it appeared, then presses Esc.</li>
     </ul>
     <p class="small">Want your server, client or another harness covered? <a href="https://github.com/Blackman99/askwire/issues/new/choose">Open an issue</a>. The <a href="docs/">docs</a> cover every flag, the JSON format and the FAQ. The write-up: <a href="blog/decline-vs-cancel/">decline vs cancel, and who is actually answering</a> (<a href="blog/zh/decline-vs-cancel/" lang="zh">中文</a>).</p>
@@ -186,7 +200,7 @@ if (r.action !== "accept" || !r.content?.confirm) {
 </main>
 
 <footer class="foot">
-  <p>Measured 2026-10-25 · Claude Code 2.1.310 · Codex CLI 0.164.0 · opencode 1.19.4. A daily CI run re-measures the latest releases.</p>
+  <p>Measured 2026-10-25 · Claude Code 2.1.310 · Codex CLI 0.164.0 · opencode 1.19.4 · Gemini CLI 0.65.0. A daily CI run re-measures the latest releases.</p>
   <p><a href="https://github.com/Blackman99/askwire">github.com/Blackman99/askwire</a> · MIT</p>
 </footer>
 <script src="app.js" defer></script>

@@ -30,7 +30,7 @@ test("parseScenarios validates names", () => {
 test("usage errors exit 2 with a hint", () => {
   const r = spawnSync(process.execPath, [cli, "nopeclient"], { encoding: "utf8" });
   assert.equal(r.status, 2);
-  assert.match(r.stderr, /unknown client "nopeclient" \(supported: claude, codex, opencode\)/);
+  assert.match(r.stderr, /unknown client "nopeclient" \(supported: claude, codex, opencode, gemini\)/);
   assert.match(r.stderr, /--help/);
 });
 

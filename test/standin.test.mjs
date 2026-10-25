@@ -59,3 +59,23 @@ test("Chat Completions: tool_calls then a final message", async () => {
     assert.match(r2.choices[0].message.content, /finished/);
   } finally { await s.close(); }
 });
+
+test("Gemini generateContent: functionCall per probe tool, plain text for tool-less side requests", async () => {
+  const s = await startStandin(["form", "url"]);
+  try {
+    const tools = [{ functionDeclarations: [{ name: "mcp_askwire_askwire_form" }, { name: "mcp_askwire_askwire_url" }] }];
+    const u = `${s.url}/v1beta/models/gemini-2.5-flash:generateContent`;
+    const r1 = await post(u, { tools, contents: [{ role: "user", parts: [{ text: "go" }] }] });
+    const fc = r1.candidates[0].content.parts[0].functionCall;
+    assert.equal(fc.name, "mcp_askwire_askwire_form");
+    const r2 = await post(u, { tools, contents: [
+      { role: "user", parts: [{ text: "go" }] }, { role: "model", parts: [{ functionCall: fc }] },
+      { role: "user", parts: [{ functionResponse: { name: fc.name, response: {} } }] }] });
+    assert.equal(r2.candidates[0].content.parts[0].functionCall.name, "mcp_askwire_askwire_url");
+    const side = await post(u, { contents: [{ role: "user", parts: [{ text: "classify" }] }] });
+    assert.ok(side.candidates[0].content.parts[0].text !== undefined);
+    const sr = await fetch(`${s.url}/v1beta/models/x:streamGenerateContent?alt=sse`, { method: "POST", body: JSON.stringify({ tools, contents: [] }) });
+    assert.match(await sr.text(), /^data: .*functionCall/);
+    assert.ok(s.stats.apis.has("gemini"));
+  } finally { await s.close(); }
+});
