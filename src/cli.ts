@@ -7,7 +7,7 @@ import { runProbeServer } from "./probe-server.js";
 import { renderMarkdown, renderText, paint } from "./report.js";
 import { clientVerdict } from "./analyze.js";
 import { ALL_SCENARIOS, type ClientRun, type Scenario } from "./types.js";
-import { VERSION, REPO_URL } from "./meta.js";
+import { VERSION, DOCS_URL } from "./meta.js";
 
 const HELP = `askwire ${VERSION} — does your MCP server's elicitation reach a human?
 
@@ -41,7 +41,7 @@ Examples
   npx github:Blackman99/askwire claude codex --tui
   askwire server --log /tmp/askwire.jsonl     # add to any MCP client by hand
 
-Docs: ${REPO_URL}`;
+Docs: ${DOCS_URL}`;
 
 interface Args { cmd: "run" | "server" | "clients" | "help" | "version"; clients: string[]; flags: Map<string, string | true>; bins: Map<string, string>; }
 

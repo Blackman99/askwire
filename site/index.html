@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>askwire · does your MCP server's question reach a human?</title>
+<meta name="description" content="Claude Code and Codex advertise MCP elicitation, then answer it themselves in headless runs: cancel in 3 ms, decline in 2 ms. askwire runs the AI clients on your machine against a probe and shows what each one really answers.">
+<link rel="canonical" href="https://blackman99.github.io/askwire/">
+<link rel="icon" href="img/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="img/logo-512.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="askwire">
+<meta property="og:url" content="https://blackman99.github.io/askwire/">
+<meta property="og:title" content="askwire · does your MCP server's question reach a human?">
+<meta property="og:description" content="claude -p answers your elicitation with cancel in 3 ms. codex exec says decline in 2 ms. Nobody was asked. Test the clients on your machine in one command.">
+<meta property="og:image" content="https://blackman99.github.io/askwire/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A scarlet theatre curtain that stays down while two cue lights report cancel in 3 ms and decline in 2 ms.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="askwire · does your MCP server's question reach a human?">
+<meta name="twitter:description" content="claude -p answers your elicitation with cancel in 3 ms. codex exec says decline in 2 ms. Nobody was asked.">
+<meta name="twitter:image" content="https://blackman99.github.io/askwire/og.png">
+<meta name="twitter:image:alt" content="A scarlet theatre curtain that stays down while two cue lights report cancel in 3 ms and decline in 2 ms.">
+<meta name="theme-color" content="#141216">
+<link rel="preload" href="fonts/Limelight.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/Manrope.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#q1">Skip to the measurements</a>
+
+<header class="house" aria-label="askwire">
+  <div class="proscenium">
+    <a class="marquee" href="./" aria-label="askwire home"><img src="img/logo.svg" alt="" width="44" height="44"><span>askwire</span></a>
+    <nav aria-label="Main">
+      <a href="docs/">Docs</a>
+      <a href="https://github.com/Blackman99/askwire">GitHub</a>
+      <a href="https://github.com/Blackman99/askwire/releases/latest">Release</a>
+    </nav>
+  </div>
+
+  <div class="stage" id="stage">
+    <!-- what is behind the curtain: the client's real prompt, captured from a TUI run -->
+    <div class="behind" aria-hidden="true">
+      <div class="term" id="term">
+        <div class="term-bar"><span id="term-title">claude 2.1.310 · interactive</span><span class="term-esc" id="term-esc">Esc</span></div>
+        <pre id="term-body"></pre>
+      </div>
+    </div>
+    <svg class="curtain" id="curtain" aria-hidden="true" preserveAspectRatio="none"></svg>
+    <div class="apron">
+      <p class="kicker">MCP elicitation, measured on the real clients</p>
+      <h1>Your MCP server asks a question.<br><em>Is anybody there?</em></h1>
+      <p class="lede">Claude Code and Codex both tell your server they support elicitation. In a headless run they then answer it themselves: <b>cancel in 3&nbsp;ms</b>, <b>decline in 2&nbsp;ms</b>. askwire runs the AI clients installed on your machine against a probe server and shows you what each one really sends back.</p>
+      <div class="cmd">
+        <code id="cmd-text">npx github:Blackman99/askwire</code>
+        <button type="button" class="copy" data-copy="npx github:Blackman99/askwire">copy</button>
+      </div>
+      <p class="caption" id="caption" role="status" aria-live="polite">The curtain only goes up when a person is in front of the screen.</p>
+    </div>
+  </div>
+
+  <section class="desk" aria-label="Replay of a real askwire run">
+    <div class="desk-controls">
+      <div class="switch" role="radiogroup" aria-label="Client mode">
+        <button type="button" role="radio" aria-checked="true" data-mode="headless">headless<small>-p / exec / run</small></button>
+        <button type="button" role="radio" aria-checked="false" data-mode="tui">interactive<small>TUI in tmux</small></button>
+      </div>
+      <button type="button" class="standby" id="standby"><span class="lamp-dot"></span>STANDBY<small>send elicitation/create</small></button>
+    </div>
+    <div class="boxes">
+      <article class="cue" data-client="claude">
+        <span class="wire" aria-hidden="true"><i class="packet"></i></span>
+        <div class="panel">
+          <span class="lamp red"></span><span class="lamp green"></span>
+          <p class="plate">CLAUDE<span id="claude-cmd">-P</span></p>
+          <p class="ver">2.1.310 · form + url</p>
+        </div>
+        <p class="answer" id="claude-ans">&nbsp;</p>
+      </article>
+      <article class="cue" data-client="codex">
+        <span class="wire" aria-hidden="true"><i class="packet"></i></span>
+        <div class="panel">
+          <span class="lamp red"></span><span class="lamp green"></span>
+          <p class="plate">CODEX<span id="codex-cmd">EXEC</span></p>
+          <p class="ver">0.164.0 · form + url</p>
+        </div>
+        <p class="answer" id="codex-ans">&nbsp;</p>
+      </article>
+      <article class="cue" data-client="opencode">
+        <span class="wire" aria-hidden="true"><i class="packet"></i></span>
+        <div class="panel">
+          <span class="lamp red"></span><span class="lamp green"></span>
+          <p class="plate">OPENCODE<span id="opencode-cmd">RUN</span></p>
+          <p class="ver">1.19.4 · not advertised</p>
+        </div>
+        <p class="answer" id="opencode-ans">&nbsp;</p>
+      </article>
+    </div>
+    <p class="desk-note">Replay of real runs on 2026-10-25, slowed down so you can watch. The millisecond figures are what the probe server logged. Reproduced on a clean GitHub runner in <a href="https://github.com/Blackman99/askwire/actions/workflows/ci.yml">CI</a>.</p>
+  </section>
+</header>
+
+<main>
+  <div class="spine" aria-hidden="true"></div>
+
+  <section id="q1" class="cue-sec">
+    <p class="qno">Q1</p>
+    <h2>Faster than anyone can read</h2>
+    <p>A person needs about a quarter of a second just to react to something appearing on screen, and far longer to read a question and decide. Here is when each client answered, on a log scale.</p>
+    <figure class="ruler" aria-labelledby="ruler-cap">
+      <svg id="ruler" viewBox="0 0 1000 260" role="img" aria-label="Log scale from 0.1 ms to 10 s. codex exec declined at 1 to 2 ms, claude -p cancelled at 3 to 5 ms. Simple human reaction time is about 250 ms. Interactive runs answered after askwire pressed Esc at 1.7 to 2.1 s."></svg>
+      <figcaption id="ruler-cap">Headless answers arrive two orders of magnitude before a person could react. Interactive answers arrive after the question was drawn on screen and askwire pressed Esc.</figcaption>
+    </figure>
+  </section>
+
+  <section class="cue-sec">
+    <p class="qno">Q2</p>
+    <h2>One command, the clients you already have</h2>
+    <p>No account and no API key. askwire points each client at a local stand-in model that calls the probe tools, so nothing leaves your machine and your own client settings are never read or changed.</p>
+    <div class="cmd wide"><code>npx github:Blackman99/askwire</code><button type="button" class="copy" data-copy="npx github:Blackman99/askwire">copy</button></div>
+    <pre class="tty" aria-label="Real askwire output"><span class="b">askwire</span> 0.1.0 <span class="d">·</span> does your MCP server's question reach a human?
+<span class="d">probe AW-CRJL · 2026-10-25 10:28 UTC+08:00 · 3 client runs</span>
+
+<span class="b">claude 2.1.310</span>  <span class="d">claude -p</span>
+  <span class="d">│</span> initialize   advertises elicitation: form + url
+  <span class="d">│</span> form         <span class="r">cancel   </span>in 4 ms · no terminal, so the client answered, not a person
+  <span class="d">│</span> url          <span class="r">cancel   </span>in 4 ms · no terminal, so the client answered, not a person
+  <span class="d">└</span> <span class="r">CLAIMS SUPPORT · ANSWERS WITHOUT A HUMAN</span>
+
+<span class="b">codex 0.164.0</span>  <span class="d">codex exec</span>
+  <span class="d">│</span> initialize   advertises elicitation: form + url
+  <span class="d">│</span> form         <span class="r">decline  </span>in 2 ms · no terminal, so the client answered, not a person
+  <span class="d">│</span> url          <span class="r">decline  </span>in &lt;1 ms · no terminal, so the client answered, not a person
+  <span class="d">└</span> <span class="r">CLAIMS SUPPORT · ANSWERS WITHOUT A HUMAN</span>
+
+<span class="b">opencode 1.19.4</span>  <span class="d">opencode run</span>
+  <span class="d">│</span> initialize   <span class="y">does not advertise elicitation</span>
+  <span class="d">│</span> unadvertised error    -32601 Method not found (after 5 ms)
+  <span class="d">└</span> <span class="d">NO SUPPORT · SAYS SO</span></pre>
+    <p class="small">Add <code>--tui</code> to drive the interactive UIs in tmux and check that the question is really drawn on screen. <code>--markdown</code> prints a table for an issue, <code>--json</code> prints everything.</p>
+  </section>
+
+  <section class="cue-sec">
+    <p class="qno">Q3</p>
+    <h2>decline or cancel? Depends who you ask</h2>
+    <p>The spec gives the three answers distinct meanings: <b>accept</b> means the user submitted, <b>decline</b> means the user explicitly said no, <b>cancel</b> means they dismissed it without choosing. Same probe, four situations:</p>
+    <div class="sheet" role="table" aria-label="What each client answered">
+      <div role="row" class="hd"><span role="columnheader">situation</span><span role="columnheader">claude 2.1.310</span><span role="columnheader">codex 0.164.0</span><span role="columnheader">spec says</span></div>
+      <div role="row"><span role="cell">headless, form</span><span role="cell"><b class="r">cancel</b> 4 ms</span><span role="cell"><b class="r">decline</b> 2 ms</span><span role="cell">nobody was asked: no answer is "right"</span></div>
+      <div role="row"><span role="cell">headless, url</span><span role="cell"><b class="r">cancel</b> 4 ms</span><span role="cell"><b class="r">decline</b> &lt;1 ms</span><span role="cell">same</span></div>
+      <div role="row"><span role="cell">on screen, Esc, form</span><span role="cell"><b>cancel</b></span><span role="cell"><b>cancel</b></span><span role="cell">cancel</span></div>
+      <div role="row"><span role="cell">on screen, Esc, url</span><span role="cell"><b>cancel</b></span><span role="cell"><b class="y">decline</b></span><span role="cell">cancel</span></div>
+    </div>
+    <p>So a <code>decline</code> from codex may mean "nobody was there" or "the user closed the dialog", and a <code>cancel</code> from Claude Code looks the same whether a person pressed Esc or no terminal existed. Neither answer proves a person saw anything.</p>
+  </section>
+
+  <section class="cue-sec">
+    <p class="qno">Q4</p>
+    <h2>What your server should do about it</h2>
+    <ol class="rules">
+      <li><b>Only <code>accept</code> with the content you asked for is consent.</b> Treat decline and cancel the same: do not proceed.</li>
+      <li><b>Always pass a timeout.</b> A client that shows the question and waits will hold your tool call open until someone comes back.</li>
+      <li><b>Do not read "advertises elicitation" as "a person is there".</b> Headless runs advertise it too.</li>
+      <li><b>Log accepts.</b> Claude Code hooks can answer elicitations on the user's behalf, in about 20 ms.</li>
+    </ol>
+<pre class="code"><span class="d">// TypeScript SDK</span>
+const r = await server.server.elicitInput(params, { timeout: 120_000 });
+if (r.action !== "accept" || !r.content?.confirm) {
+  return { content: [{ type: "text", text: "Not confirmed. Nothing was changed." }] };
+}</pre>
+  </section>
+
+  <section class="cue-sec">
+    <p class="qno">Q5</p>
+    <h2>How the probe works</h2>
+    <ul class="how">
+      <li><b>Probe server.</b> A stdio MCP server with three tools. Each one sends a raw <code>elicitation/create</code> (form, url, and one sent to a client that never advertised it) and logs the client's capabilities, the answer and the round trip in milliseconds.</li>
+      <li><b>Stand-in model.</b> A local endpoint that speaks the Anthropic Messages, OpenAI Responses and Chat Completions formats just well enough to call those tools in order. Every client gets its own temporary home and config.</li>
+      <li><b>Screen check.</b> With <code>--tui</code> the client runs in a private tmux server. askwire watches for the probe's nonce on screen, records when it appeared, then presses Esc.</li>
+    </ul>
+    <p class="small">Want your server, client or another harness covered? <a href="https://github.com/Blackman99/askwire/issues/new/choose">Open an issue</a>. The <a href="docs/">docs</a> cover every flag, the JSON format and the FAQ.</p>
+  </section>
+</main>
+
+<footer class="foot">
+  <p>Measured 2026-10-25 · Claude Code 2.1.310 · Codex CLI 0.164.0 · opencode 1.19.4. A daily CI run re-measures the latest releases.</p>
+  <p><a href="https://github.com/Blackman99/askwire">github.com/Blackman99/askwire</a> · MIT</p>
+</footer>
+<script src="app.js" defer></script>
+</body>
+</html>

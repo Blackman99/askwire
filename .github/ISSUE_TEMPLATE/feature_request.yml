@@ -1,0 +1,15 @@
+name: Feature or new client adapter
+description: Suggest a scenario, client or output format
+labels: [enhancement]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What should askwire do?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: What question does it help answer?
+      description: askwire's job is "did a human see the elicitation, and what came back?"

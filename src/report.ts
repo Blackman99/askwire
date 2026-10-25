@@ -8,7 +8,7 @@ export function paint(on: boolean): Paint {
   return { red: w(31, 39), green: w(32, 39), yellow: w(33, 39), dim: w(2, 22), bold: w(1, 22) };
 }
 
-const fmtMs = (ms: number) => (ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`);
+const fmtMs = (ms: number) => (ms < 1 ? "<1 ms" : ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`);
 
 export function rowText(r: ScenarioResult, run: ClientRun): { action: string; detail: string } {
   const o = r.outcome;

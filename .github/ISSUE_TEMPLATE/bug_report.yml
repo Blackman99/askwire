@@ -1,0 +1,26 @@
+name: Bug report
+description: askwire reported something your client doesn't do, or crashed
+labels: [bug]
+body:
+  - type: textarea
+    id: output
+    attributes:
+      label: askwire output
+      description: Paste the output of `askwire --markdown` (add `--tui` if relevant). Use `--keep --json` for the full record.
+      render: markdown
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What actually happens in the client
+      description: What you saw when you used the client by hand.
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: OS, Node version, client versions
+      placeholder: "Ubuntu 24.04, Node 22.12, Claude Code 2.1.310"
+    validations:
+      required: true

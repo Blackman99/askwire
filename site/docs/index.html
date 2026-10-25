@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>askwire docs · install, usage, configuration, reference, FAQ</title>
+<meta name="description" content="How to run askwire against Claude Code, Codex and opencode, what every flag does, how to read the verdicts, the JSON format, exit codes and the FAQ.">
+<link rel="canonical" href="https://blackman99.github.io/askwire/docs/">
+<link rel="icon" href="../img/favicon.svg" type="image/svg+xml">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="askwire">
+<meta property="og:url" content="https://blackman99.github.io/askwire/docs/">
+<meta property="og:title" content="askwire docs">
+<meta property="og:description" content="Run the AI clients on your machine against an MCP elicitation probe and see who really answers: install, flags, verdicts, JSON, FAQ.">
+<meta property="og:image" content="https://blackman99.github.io/askwire/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A scarlet theatre curtain that stays down while two cue lights report cancel in 3 ms and decline in 2 ms.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="askwire docs">
+<meta name="twitter:description" content="Install, flags, verdicts, JSON format and FAQ for askwire, the MCP elicitation reality check.">
+<meta name="twitter:image" content="https://blackman99.github.io/askwire/og.png">
+<meta name="theme-color" content="#141216">
+<link rel="stylesheet" href="../style.css">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body class="docs">
+<a class="skip" href="#install">Skip to the docs</a>
+<header class="proscenium">
+  <a class="marquee" href="../" aria-label="askwire home"><img src="../img/logo.svg" alt="" width="44" height="44"><span>askwire</span></a>
+  <nav aria-label="Main"><a href="../">Home</a><a href="https://github.com/Blackman99/askwire">GitHub</a><a href="https://github.com/Blackman99/askwire/releases/latest">Release</a></nav>
+</header>
+<div class="docs-wrap">
+<aside class="prompt-book" aria-label="Contents">
+  <p class="pb-title">Prompt book</p>
+  <ol>
+    <li><a href="#install">Install</a></li>
+    <li><a href="#usage">Usage</a></li>
+    <li><a href="#configuration">Configuration</a></li>
+    <li><a href="#reference">Reference</a></li>
+    <li><a href="#faq">FAQ</a></li>
+  </ol>
+</aside>
+<main class="docs-main">
+  <h1>askwire docs</h1>
+  <p class="lede-d">askwire tells MCP server authors what really happens to an <code>elicitation/create</code> request in each AI client: was the question drawn on a screen, or did the client answer it by itself? It runs the clients installed on your machine against a probe server and a scripted stand-in model. Everything stays local.</p>
+
+  <section id="install">
+    <h2><span class="cue-no">1</span>Install</h2>
+    <p>Needs Node.js 20 or newer. Nothing to configure, no API key.</p>
+<pre class="code">npx github:Blackman99/askwire           <span class="d"># run straight from GitHub</span></pre>
+    <p>Or install the release tarball globally, which gives you an <code>askwire</code> command:</p>
+<pre class="code">npm install -g https://github.com/Blackman99/askwire/releases/download/v0.1.0/askwire-0.1.0.tgz
+askwire --version</pre>
+    <p>askwire only tests clients that are already installed. To try one without touching your global install, put it in a scratch folder and point at it with <code>--bin</code>:</p>
+<pre class="code">npm install --prefix /tmp/clients @anthropic-ai/claude-code @openai/codex opencode-ai
+askwire --bin claude=/tmp/clients/node_modules/.bin/claude \
+        --bin codex=/tmp/clients/node_modules/.bin/codex \
+        --bin opencode=/tmp/clients/node_modules/.bin/opencode</pre>
+    <p><code>--tui</code> also needs <code>tmux</code> (<code>apt install tmux</code>, <code>brew install tmux</code>). Real-client runs are tested on Linux in CI and the unit tests also run on macOS. Windows is untested so far.</p>
+  </section>
+
+  <section id="usage">
+    <h2><span class="cue-no">2</span>Usage</h2>
+    <h3>Headless (the default)</h3>
+    <p>Runs <code>claude -p</code>, <code>codex exec</code> and <code>opencode run</code>: the way agents run in CI, scripts and sub-agents. No terminal exists, so any answer you get came from the client.</p>
+<pre class="code">askwire                    <span class="d"># every supported client found on PATH</span>
+askwire claude codex       <span class="d"># just these</span></pre>
+    <h3>Interactive (<code>--tui</code>)</h3>
+    <p>Starts each client's real terminal UI inside a private tmux server, waits until the probe's nonce (for example <code>AW-4FJ7</code>) shows up on screen, records how long that took, then presses Esc. That tells you the question was really drawn, and which answer a dismissal produces.</p>
+<pre class="code">askwire --tui
+askwire codex --tui --answer none --timeout 60   <span class="d"># leave the prompt open: see how long the client holds the call</span></pre>
+    <h3>For an issue or a script</h3>
+<pre class="code">askwire --markdown         <span class="d"># table to paste into a bug report</span>
+askwire --json > run.json  <span class="d"># everything, see the reference</span>
+askwire --strict           <span class="d"># exit 1 if any client answered without a human: useful in CI</span></pre>
+    <h3>Use the probe server by hand</h3>
+    <p>Want to see what your own setup does, with your real model? Add the probe server to the client yourself and ask the agent to call the <code>askwire_form</code> tool.</p>
+<pre class="code">claude mcp add askwire -- npx -y github:Blackman99/askwire server --log /tmp/askwire.jsonl
+tail -f /tmp/askwire.jsonl</pre>
+    <p>Each line in the log is a JSON event: <code>initialized</code> (with the client's capabilities), <code>sent</code>, then <code>result</code>, <code>error</code> or <code>timeout</code>.</p>
+  </section>
+
+  <section id="configuration">
+    <h2><span class="cue-no">3</span>Configuration</h2>
+    <p>There is no config file. Everything is a flag.</p>
+    <table class="flags">
+      <thead><tr><th>flag</th><th>default</th><th>what it does</th></tr></thead>
+      <tbody>
+        <tr><td><code>[clients...]</code></td><td>all found</td><td>Any of <code>claude</code>, <code>codex</code>, <code>opencode</code>. Naming a client that is not installed is reported as a problem, not skipped.</td></tr>
+        <tr><td><code>--tui</code></td><td>off</td><td>Run the interactive UI in tmux and check the question is on screen.</td></tr>
+        <tr><td><code>--scenarios</code></td><td><code>form,url,unadvertised</code></td><td>Which probes to send. <code>unadvertised</code> is only sent to a client that did not advertise elicitation.</td></tr>
+        <tr><td><code>--timeout</code></td><td><code>20</code> (server: <code>120</code>)</td><td>Seconds the probe waits for each answer before logging a timeout.</td></tr>
+        <tr><td><code>--bin id=path</code></td><td>PATH lookup</td><td>Use a specific binary. Repeat for each client.</td></tr>
+        <tr><td><code>--answer</code></td><td><code>esc</code></td><td>TUI only. <code>esc</code> dismisses the question once it is visible; <code>none</code> leaves it open until the timeout.</td></tr>
+        <tr><td><code>--json</code> / <code>--markdown</code></td><td>text</td><td>Output format. Progress still goes to stderr when it is a terminal.</td></tr>
+        <tr><td><code>--strict</code></td><td>off</td><td>Exit 1 if any client got a bad verdict (see below).</td></tr>
+        <tr><td><code>--keep</code></td><td>off</td><td>Keep the run directory in <code>./.askwire-&lt;time&gt;/</code>: generated configs, the probe log and the captured screens.</td></tr>
+        <tr><td><code>--no-color</code></td><td>auto</td><td>Plain text. <code>NO_COLOR=1</code> does the same; <code>FORCE_COLOR=1</code> forces color into a pipe.</td></tr>
+      </tbody>
+    </table>
+    <h3>What askwire does to your machine</h3>
+    <p>Each client runs with its own temporary home directory (<code>HOME</code>, <code>CODEX_HOME</code>, XDG dirs) and a generated config that points it at <code>127.0.0.1</code>. Your real <code>~/.claude</code>, <code>~/.codex</code> and opencode settings are not read or written. The stand-in model only calls the three probe tools; it never asks for shell or file tools. The run directory is deleted afterwards unless you pass <code>--keep</code> or the run failed. One exception: opencode downloads its provider package on first use, and askwire keeps that cache in <code>~/.cache/askwire/opencode</code> so later runs are fast. Delete it whenever you like.</p>
+  </section>
+
+  <section id="reference">
+    <h2><span class="cue-no">4</span>Reference</h2>
+    <h3>Outcomes per scenario</h3>
+    <table class="flags">
+      <thead><tr><th>outcome</th><th>meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>answered</code></td><td>The client replied with <code>accept</code>, <code>decline</code> or <code>cancel</code>, after <code>ms</code>.</td></tr>
+        <tr><td><code>error</code></td><td>The client replied with a JSON-RPC error, for example <code>-32601 Method not found</code>.</td></tr>
+        <tr><td><code>timeout</code></td><td>No reply within <code>--timeout</code>. The question may be sitting on a screen nobody is watching.</td></tr>
+        <tr><td><code>not-advertised</code></td><td>The client did not advertise this mode at <code>initialize</code>, so the probe did not send it.</td></tr>
+        <tr><td><code>not-needed</code></td><td>The <code>unadvertised</code> probe is skipped for clients that do advertise elicitation.</td></tr>
+        <tr><td><code>not-reached</code></td><td>The stand-in model never got to call that tool. Usually the client crashed or refused the tool; the problem line says why.</td></tr>
+      </tbody>
+    </table>
+    <h3>Client verdicts</h3>
+    <table class="flags">
+      <thead><tr><th>verdict</th><th>when</th></tr></thead>
+      <tbody>
+        <tr><td><b class="bad">CLAIMS SUPPORT · ANSWERS WITHOUT A HUMAN</b></td><td>Advertises elicitation, and answered a question that was never on a screen (every headless answer; a TUI answer whose nonce never appeared).</td></tr>
+        <tr><td><b class="bad">QUESTION NEVER ANSWERED</b></td><td>At least one probe timed out.</td></tr>
+        <tr><td><b class="bad">ADVERTISED BUT ERRORS</b></td><td>Advertised a mode, then returned an error for it.</td></tr>
+        <tr><td><b class="good">SHOWN ON SCREEN</b></td><td>TUI run: every advertised question was drawn on the terminal before the answer.</td></tr>
+        <tr><td><b class="warn">NO SUPPORT · SAYS SO</b></td><td>Does not advertise elicitation and rejects an unadvertised request cleanly.</td></tr>
+        <tr><td><b>INCOMPLETE</b> / <b>COULD NOT RUN</b></td><td>Something stopped the run; the problem line (and the kept screens with <code>--keep</code>) tell you what.</td></tr>
+      </tbody>
+    </table>
+    <h3>JSON</h3>
+<pre class="code">{
+  "askwire": "0.1.0",
+  "probe": "AW-4FJ7",
+  "when": "2026-10-25 10:39 UTC+08:00",
+  "runs": [{
+    "client": "codex", "version": "0.164.0", "mode": "tui",
+    "command": "codex (interactive)",
+    "advertised": { "form": true, "url": true, "raw": { "elicitation": { "form": {}, "url": {} } } },
+    "results": [
+      { "scenario": "url",
+        "outcome": { "kind": "answered", "action": "decline", "ms": 2114 },
+        "seen": true, "seenAfterMs": 229, "escPressed": true }
+    ]
+  }]
+}</pre>
+    <p><code>seen</code>, <code>seenAfterMs</code> and <code>escPressed</code> only appear in TUI runs. <code>problem</code> appears on a run that could not complete; <code>logDir</code> when its files were kept.</p>
+    <h3>Exit codes</h3>
+    <table class="flags">
+      <tbody>
+        <tr><td><code>0</code></td><td>The probe ran and a report was printed (whatever the verdicts, unless <code>--strict</code>).</td></tr>
+        <tr><td><code>1</code></td><td><code>--strict</code> and at least one bad verdict.</td></tr>
+        <tr><td><code>2</code></td><td>Usage error, no supported client found, or askwire itself failed.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="faq">
+    <h2><span class="cue-no">5</span>FAQ</h2>
+    <details open><summary>Is it a bug that headless clients answer by themselves?</summary>
+      <p>Not necessarily: with no terminal there is nobody to ask, and answering quickly beats hanging. The problem is for your server. The client still advertised elicitation at <code>initialize</code>, and the answer it returns (<code>cancel</code> from Claude Code, <code>decline</code> from Codex) is indistinguishable from what a person would send. Your server cannot tell "the user said no" from "there was no user".</p></details>
+    <details><summary>Why does it matter whether I get decline or cancel?</summary>
+      <p>The spec gives them different meanings: decline means the user explicitly refused, cancel means they dismissed the prompt without choosing. A server might reasonably retry after a cancel and stop after a decline. In our runs, Codex returned <code>decline</code> when Esc dismissed its URL prompt, and also in headless mode where nobody was there. Treat both as "do not proceed" and do not build retry logic on the difference.</p></details>
+    <details><summary>Does askwire use my API key or send anything to a model provider?</summary>
+      <p>No. Each client talks to a stand-in endpoint on <code>127.0.0.1</code> that speaks just enough of the Anthropic Messages, OpenAI Responses and Chat Completions formats to call the probe tools. No tokens are spent and nothing leaves the machine. (The clients themselves may still try their own update checks or telemetry.)</p></details>
+    <details><summary>Can a client accept an elicitation without a person?</summary>
+      <p>Yes. Claude Code's <code>Elicitation</code> hook can return an answer, including <code>accept</code> with content, before anything is shown; in our test it did so in about 20 ms. That is a feature for automation, and it is why your server should log accepted answers, not assume a person typed them.</p></details>
+    <details><summary>Why is my client missing?</summary>
+      <p>askwire 0.1 drives Claude Code, Codex CLI and opencode, because each can be pointed at a local model and run both headless and as a TUI. Cursor, VS Code, Gemini CLI and others are on the <a href="https://github.com/Blackman99/askwire/blob/main/ROADMAP.md">roadmap</a>. If a client can be scripted, <a href="https://github.com/Blackman99/askwire/issues/new/choose">open an issue</a>.</p></details>
+    <details><summary>The TUI run says the question never appeared.</summary>
+      <p>Run again with <code>--keep</code> and look at <code>screen-*.txt</code> in the run directory: it is the exact terminal text askwire saw. Common causes are a first-run dialog the adapter does not know yet (new client versions add them) and a very slow machine; try <code>--timeout 60</code>.</p></details>
+    <details><summary>How fresh are the numbers on the homepage?</summary>
+      <p>They come from runs on 2026-10-25 with Claude Code 2.1.310, Codex CLI 0.164.0 and opencode 1.19.4, reproduced on a GitHub Actions runner. A <a href="https://github.com/Blackman99/askwire/actions/workflows/ci.yml">daily CI job</a> installs the latest releases and runs askwire again, headless and <code>--tui</code>, with the reports in the job summary.</p></details>
+  </section>
+</main>
+</div>
+<footer class="foot"><p><a href="../">askwire</a> · <a href="https://github.com/Blackman99/askwire">GitHub</a> · MIT</p></footer>
+</body>
+</html>
