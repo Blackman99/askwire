@@ -5,6 +5,7 @@
 - Gemini CLI adapter (`gemini -p` and interactive) in a throwaway `HOME`, pointed at the stand-in through `GOOGLE_GEMINI_BASE_URL`.
 - Stand-in model speaks Gemini `generateContent` / `streamGenerateContent`.
 - Measured: Gemini CLI 0.65.0 does not advertise elicitation; a raw request gets `-32601`.
+- Site: blog article "Decline vs cancel, and who is actually answering" in English and Chinese, linked from the README, landing page and docs.
 
 ## [0.1.0] - 2026-10-25
 
