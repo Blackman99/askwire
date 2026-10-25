@@ -13,9 +13,14 @@ permissions:
 jobs:
   unit:
     strategy:
+      fail-fast: false
       matrix:
+        os: [ubuntu-latest]
         node: [20, 22, 24]
-    runs-on: ubuntu-latest
+        include:
+          - os: macos-latest
+            node: 22
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

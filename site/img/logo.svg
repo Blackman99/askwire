@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>askwire</title>
+  <g transform="translate(-34 14)">
+    <!-- cable leaves the cue-light box and bends into a question mark -->
+    <path d="M300 168 H322 A69 69 0 1 1 430 226 C404 244 392 258 392 288 V306" fill="none" stroke="#6e0f1f" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M300 168 H322 A69 69 0 1 1 430 226 C404 244 392 258 392 288 V306" fill="none" stroke="#a3162b" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M318 160 A60 60 0 0 1 340 120" fill="none" stroke="#c42a3c" stroke-width="5" stroke-linecap="round"/>
+    <!-- plug at the end of the cable -->
+    <rect x="374" y="300" width="36" height="42" rx="5" fill="#5e5862" stroke="#141216" stroke-width="4"/>
+    <rect x="382" y="342" width="7" height="16" rx="2" fill="#b8b2a7"/>
+    <rect x="395" y="342" width="7" height="16" rx="2" fill="#b8b2a7"/>
+    <!-- the dot of the question mark: the socket it never reaches -->
+    <circle cx="392" cy="404" r="20" fill="#141216" stroke="#3b3640" stroke-width="5"/>
+    <circle cx="386" cy="404" r="3.5" fill="#5e5862"/>
+    <circle cx="398" cy="404" r="3.5" fill="#5e5862"/>
+    <!-- cue-light box -->
+    <rect x="104" y="40" width="200" height="330" rx="12" fill="#141216"/>
+    <rect x="110" y="46" width="188" height="318" rx="9" fill="#2a262d" stroke="#3b3640" stroke-width="4"/>
+    <g fill="#5e5862" stroke="#141216" stroke-width="2">
+      <circle cx="128" cy="64" r="7"/><circle cx="280" cy="64" r="7"/><circle cx="128" cy="346" r="7"/><circle cx="280" cy="346" r="7"/>
+    </g>
+    <g stroke="#141216" stroke-width="2.5" stroke-linecap="round">
+      <path d="M124 60l8 8M132 60l-8 8M276 60l8 8M284 60l-8 8M124 342l8 8M132 342l-8 8M276 342l8 8M284 342l-8 8"/>
+    </g>
+    <!-- STANDBY: red, lit -->
+    <circle cx="204" cy="140" r="58" fill="#141216"/>
+    <circle cx="204" cy="140" r="46" fill="#e5342b"/>
+    <path d="M204 104 a36 36 0 0 1 36 36" fill="none" stroke="#c42a3c" stroke-width="0"/>
+    <circle cx="204" cy="140" r="46" fill="none" stroke="#a3162b" stroke-width="6"/>
+    <ellipse cx="188" cy="122" rx="15" ry="10" transform="rotate(-35 188 122)" fill="#e9e4dc" opacity=".7"/>
+    <!-- GO: green, dark -->
+    <circle cx="204" cy="270" r="58" fill="#141216"/>
+    <circle cx="204" cy="270" r="46" fill="#1f1c22"/>
+    <circle cx="204" cy="270" r="46" fill="#2fbf5b" opacity=".22"/>
+    <ellipse cx="188" cy="252" rx="12" ry="7" transform="rotate(-35 188 252)" fill="#e9e4dc" opacity=".18"/>
+  </g>
+</svg>
