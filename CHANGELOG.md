@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+- Gemini CLI adapter (`gemini -p` and interactive) in a throwaway `HOME`, pointed at the stand-in through `GOOGLE_GEMINI_BASE_URL`.
+- Stand-in model speaks Gemini `generateContent` / `streamGenerateContent`.
+- Measured: Gemini CLI 0.65.0 does not advertise elicitation; a raw request gets `-32601`.
+
 ## [0.1.0] - 2026-10-25
 
 First release.

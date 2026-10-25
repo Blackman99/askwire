@@ -11,7 +11,7 @@ import { VERSION, DOCS_URL } from "./meta.js";
 
 const HELP = `askwire ${VERSION} — does your MCP server's elicitation reach a human?
 
-Drives the AI clients installed on this machine (Claude Code, Codex, opencode)
+Drives the AI clients installed on this machine (Claude Code, Codex, opencode, Gemini CLI)
 with a scripted stand-in model and a probe MCP server, then reports what each
 client actually answered. No account, API key or tokens needed. Your own
 client configs are never read or changed.

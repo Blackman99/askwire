@@ -1,6 +1,7 @@
 /**
  * A scripted stand-in for a model API. It speaks just enough of the Anthropic
- * Messages, OpenAI Responses and OpenAI Chat Completions wire formats for a
+ * Messages, OpenAI Responses, OpenAI Chat Completions and Gemini
+ * generateContent wire formats for a
  * coding agent to run one turn: call each askwire probe tool once, in order,
  * then reply with a short final message. No account, no tokens, no network.
  */
@@ -49,6 +50,8 @@ export async function startStandin(order: Scenario[], host = "127.0.0.1"): Promi
       try { j = body ? JSON.parse(body) : {}; } catch { /* ignore */ }
       const url = req.url ?? "";
       try {
+        if (/:(stream)?[gG]enerateContent/.test(url)) return gemini(url, j, res);
+        if (url.includes(":countTokens")) return json(res, { totalTokens: 42 });
         if (url.includes("/messages")) return anthropic(url, j, res);
         if (url.includes("/responses")) return responses(j, res);
         if (url.includes("/chat/completions")) return chat(j, res);
@@ -102,6 +105,28 @@ export async function startStandin(order: Scenario[], host = "127.0.0.1"): Promi
     ev("content_block_stop", { type: "content_block_stop", index: 0 });
     ev("message_delta", { type: "message_delta", delta: { stop_reason: stop, stop_sequence: null }, usage: { output_tokens: 1 } });
     ev("message_stop", { type: "message_stop" });
+    res.end();
+  }
+
+  // ---------- Gemini generateContent (Gemini CLI) ----------
+  function gemini(url: string, j: any, res: http.ServerResponse) {
+    stats.apis.add("gemini");
+    const names: string[] = (j.tools ?? []).flatMap((t: any) => (t.functionDeclarations ?? []).map((f: any) => f.name)).filter(Boolean);
+    note(names);
+    const contents: any[] = j.contents ?? [];
+    const called = contents.filter((c) => c.role === "model").flatMap((c) => (c.parts ?? []).filter((p: any) => p.functionCall).map((p: any) => p.functionCall.name));
+    // Side requests (routing, next-speaker checks, titles) carry no tools: answer with plain text.
+    const next = names.length ? pickNext(names, called, order) : null;
+    if (next) stats.calls.push(next);
+    const part = next ? { functionCall: { name: next, args: {} } } : { text: names.length ? finalText : "{}" };
+    const body = {
+      candidates: [{ index: 0, content: { role: "model", parts: [part] }, finishReason: "STOP" }],
+      usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1, totalTokenCount: 2 },
+      modelVersion: "askwire-standin",
+    };
+    if (!url.includes("streamGenerateContent")) return json(res, body);
+    sse(res);
+    res.write(`data: ${JSON.stringify(body)}\n\n`);
     res.end();
   }
 

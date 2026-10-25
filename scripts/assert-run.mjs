@@ -8,5 +8,5 @@ for (const r of j.runs) {
   console.log(`${r.client} ${r.version} [${r.mode}] ${r.problem ? "PROBLEM: " + r.problem : rows.join(" ")}`);
   if (r.problem || r.results.some((x) => x.outcome.kind === "not-reached")) bad++;
 }
-if (j.runs.length < 3) { console.log(`expected 3 clients, got ${j.runs.length}`); bad++; }
+if (j.runs.length < 4) { console.log(`expected 4 clients, got ${j.runs.length}`); bad++; }
 process.exit(bad ? 1 : 0);

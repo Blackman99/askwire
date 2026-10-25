@@ -71,7 +71,7 @@ h1 em { font-style: normal; color: var(--black); background: var(--ink); padding
 .standby:disabled { cursor: progress; opacity: .7; }
 .lamp-dot { width: 22px; height: 22px; border-radius: 50%; background: var(--standby); box-shadow: inset 0 0 0 4px #7d1a16; flex: none; }
 
-.boxes { width: 100%; padding-top: 34px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(10px, 3vw, 40px); max-width: 1080px; margin: 0 auto; }
+.boxes { width: 100%; padding-top: 34px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(8px, 2.4vw, 32px); max-width: 1180px; margin: 0 auto; }
 .cue { position: relative; display: flex; flex-direction: column; align-items: center; }
 .wire { position: absolute; left: 50%; bottom: 100%; width: 10px; margin-left: -5px; height: 84px; background: var(--black); border-left: 2px solid #0b0a0c; }
 .packet { position: absolute; left: -4px; width: 14px; height: 14px; bottom: 0; border-radius: 2px; background: var(--amber); opacity: 0; }
@@ -137,3 +137,4 @@ h2 { margin: 0 0 14px; font: 400 clamp(28px, 4vw, 42px)/1.1 var(--display); lett
   .ruler { overflow-x: auto; }
   .ruler svg { min-width: 640px; }
 }
+@media (max-width: 600px) { .boxes { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 28px; } .cue:nth-child(n+3) .wire { display: none; } }
