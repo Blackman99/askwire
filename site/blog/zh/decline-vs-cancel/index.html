@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>decline 还是 cancel，到底是谁在回答 · askwire</title>
+<meta name="description" content="Linux 实测：claude -p 对 MCP elicitation 3–5 ms 回 cancel，codex exec 1–3 ms 回 decline。规范怎么说、如何测量、服务器端如何防护。">
+<link rel="canonical" href="https://blackman99.github.io/askwire/blog/zh/decline-vs-cancel/">
+<link rel="alternate" hreflang="en" href="https://blackman99.github.io/askwire/blog/decline-vs-cancel/">
+<link rel="alternate" hreflang="zh" href="https://blackman99.github.io/askwire/blog/zh/decline-vs-cancel/">
+<link rel="icon" href="../../../img/favicon.svg" type="image/svg+xml">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="askwire">
+<meta property="og:url" content="https://blackman99.github.io/askwire/blog/zh/decline-vs-cancel/">
+<meta property="og:title" content="decline 还是 cancel，到底是谁在回答">
+<meta property="og:description" content="Linux 实测：claude -p 对 MCP elicitation 3–5 ms 回 cancel，codex exec 1–3 ms 回 decline。规范怎么说、如何测量、服务器端如何防护。">
+<meta property="og:image" content="https://blackman99.github.io/askwire/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://blackman99.github.io/askwire/og.png">
+<meta name="theme-color" content="#141216">
+<link rel="preload" href="../../../fonts/Limelight.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../../../style.css">
+<link rel="stylesheet" href="../../../blog/blog.css">
+</head>
+<body>
+<a class="skip" href="#q1">跳到正文</a>
+<header class="proscenium">
+  <a class="marquee" href="../../../" aria-label="askwire home"><img src="../../../img/logo.svg" alt="" width="44" height="44"><span>askwire</span></a>
+  <nav aria-label="Main"><a href="../../../docs/">文档</a><a href="https://github.com/Blackman99/askwire">GitHub</a><a href="../../decline-vs-cancel/" lang="en">English</a></nav>
+</header>
+<main class="post">
+<div class="spine" aria-hidden="true"></div>
+<header class="post-head">
+  <p class="kicker">askwire 笔记 · 2026-10-25 · <a class="lang" href="../../decline-vs-cancel/" hreflang="en" lang="en">English</a></p>
+  <h1>decline 还是 cancel，到底是谁在回答</h1>
+  <p class="byline">仅在 Linux 上实测。macOS 只跑了单元测试，Windows 未测试。</p>
+</header>
+<p class="lede-b">MCP elicitation 让服务器在工具调用中途停下来问用户一个问题。回复里只有三个词之一：<code>accept</code>、<code>decline</code>、<code>cancel</code>。我们让 Claude Code、Codex 和 opencode 对着一个探针服务器跑了一遍，看看回来的是哪个词、有多快，以及到底有没有人可能看到这个问题。</p>
+
+<section id="q1"><p class="qno">Q1</p>
+<h2>规范怎么说</h2>
+<p>MCP 规范为 <code>elicitation/create</code> 定义了三种响应：</p>
+<ul class="rules">
+<li><code>accept</code>：用户明确同意并提交，<code>content</code> 中带有数据。</li>
+<li><code>decline</code>：用户明确拒绝了请求。</li>
+<li><code>cancel</code>：用户没有做出明确选择就关掉了（关闭对话框、按 Esc）。</li>
+</ul>
+<p>三者都被描述为“用户做了什么”，没有一个表示“根本没有用户”。本文讲的就是这个空档。</p>
+</section>
+
+<section><p class="qno">Q2</p>
+<h2>实际回来了什么</h2>
+<p>2026-10-25 的最新版本，一台 Linux 机器。每次运行的答案都相同，毫秒数因机器而异。</p>
+<div class="tbl-wrap"><table class="tbl">
+<thead><tr><th>客户端</th><th>运行方式</th><th>声明能力</th><th>form</th><th>url</th></tr></thead>
+<tbody>
+<tr><td>Claude Code 2.1.310</td><td><code>claude -p</code></td><td>form + url</td><td class="r"><b>cancel</b>，4 ms</td><td class="r"><b>cancel</b>，3 ms</td></tr>
+<tr><td>Claude Code 2.1.310</td><td>交互界面，按 Esc</td><td>form + url</td><td>cancel，1.7 s</td><td>cancel，2.0 s</td></tr>
+<tr><td>Codex 0.164.0</td><td><code>codex exec</code></td><td>form + url</td><td class="r"><b>decline</b>，3 ms</td><td class="r"><b>decline</b>，1 ms</td></tr>
+<tr><td>Codex 0.164.0</td><td>交互界面，按 Esc</td><td>form + url</td><td>cancel，1.8 s</td><td class="y"><b>decline</b>，2.1 s</td></tr>
+<tr><td>opencode 1.19.4</td><td><code>opencode run</code></td><td>无</td><td>未发送</td><td>未发送</td></tr>
+</tbody></table></div>
+<p>多次运行中：<code>claude -p</code> 在 3–5 ms 内回答 <code>cancel</code>，<code>codex exec</code> 在 1–3 ms 内回答 <code>decline</code>。两者都没有画出任何界面，因为根本没有终端可画。</p>
+<p>在交互式 TUI 里，问题确实被画出来了（askwire 在 120–230 ms 后在屏幕上看到了探针的 nonce），然后 askwire 按下 Esc。Claude Code 两次都返回 <code>cancel</code>；Codex 对 form 返回 <code>cancel</code>，对 URL 请求返回 <code>decline</code>。按规范，未做选择就关掉应该是 <code>cancel</code>。</p>
+<p>opencode 1.19.4 不声明 elicitation 能力（capabilities 为 <code>{roots:{}}</code>），所以 SDK 拒绝发送。强行发送原始 <code>elicitation/create</code> 会得到 <code>-32601 Method not found</code>。这是诚实的回答。</p>
+</section>
+
+<section><p class="qno">Q3</p>
+<h2>到底是谁在回答</h2>
+<p>三点观察，每一点都有探针日志为证：</p>
+<ul class="rules">
+<li><b>无头模式下的 <code>decline</code> 不是人在说不。</b><code>codex exec</code>（审批策略 never）在几毫秒内返回 <code>decline</code>，而这是规范留给“明确拒绝”的词。</li>
+<li><b>有没有人，<code>cancel</code> 看起来都一样。</b>无人的 <code>claude -p</code> 和真按了 Esc 的 Claude Code TUI 发回的回复完全相同。服务器无法区分“被关掉了”和“根本没人”。</li>
+<li><b><code>accept</code> 也证明不了有人。</b>在 <code>claude -p</code> 下，一个返回 accept 的 Claude Code <code>Elicitation</code> hook 约 20 ms 就给出 <code>{"action":"accept","content":{"confirm":true}}</code>。hook 的输入包含服务器名、消息、模式和请求的 schema，脚本可以回答任何问题。</li>
+</ul>
+<p>如果回复在 3 ms 内就回来了，那就没有人读过这个问题。</p>
+</section>
+
+<section><p class="qno">Q4</p>
+<h2>测量是怎么做的</h2>
+<ul class="how">
+<li><b>探针服务器。</b>一个 stdio MCP 服务器，每个工具只发一次 <code>elicitation/create</code>（form、url，以及对未声明该能力的客户端发一次原始请求），并带上每次运行的 nonce，例如 <code>AW-4FJ7</code>。它记录客户端在 <code>initialize</code> 时声明的能力、回答、往返耗时以及任何 JSON-RPC 错误。</li>
+<li><b>本地替身模型。</b>一个小端点，能说 Anthropic Messages、OpenAI Responses 和 Chat Completions 格式，刚好够调用下一个探针工具然后结束。不需要账号、API key，也不消耗 token。</li>
+<li><b>一次性 home 目录。</b>每个客户端都在临时的 <code>HOME</code> / <code>CODEX_HOME</code> / XDG 目录里运行，通过其文档中的自定义端点配置指向替身模型。你自己的配置不会被读取或修改。</li>
+<li><b>屏幕检查。</b>使用 <code>--tui</code> 时，真实的交互式客户端运行在私有 tmux 服务器中。askwire 等待 nonce 出现在屏幕上，记录时间，然后按 Esc。</li>
+</ul>
+<pre class="code">npx github:Blackman99/askwire            <span class="d"># 无头：claude -p、codex exec、opencode run</span>
+npx github:Blackman99/askwire --tui      <span class="d"># tmux 中的真实 TUI（需要 tmux）</span></pre>
+</section>
+
+<section><p class="qno">Q5</p>
+<h2>你的服务器应该怎么做</h2>
+<ol class="rules">
+<li>只把带有你所要求内容的 <code>accept</code> 视为同意。</li>
+<li><code>decline</code> 和 <code>cancel</code> 同等对待：不继续执行。各客户端对二者的用法并不一致。</li>
+<li>给请求加超时，没有回答就当作“不”。</li>
+<li>客户端以无头模式运行时，直接拒绝高风险操作而不是去问。如果操作很重要，记录它被 accept 的事实；hook 也能 accept。</li>
+</ol>
+<pre class="code">const r = await server.server.elicitInput({
+  message: "Delete 312 rows from orders?",
+  requestedSchema: { type: "object", properties: { confirm: { type: "boolean" } }, required: ["confirm"] },
+}, { timeout: 60_000 });                       <span class="d">// no answer in 60 s: treated as no</span>
+
+if (r.action !== "accept" || r.content?.confirm !== true) {
+  <span class="d">// decline and cancel both land here: they mean the same thing to you</span>
+  return { content: [{ type: "text", text: "Not confirmed. Nothing was changed." }] };
+}
+log.info("confirmed via elicitation", { client: server.server.getClientVersion()?.name });  <span class="d">// accept can come from a hook</span></pre>
+</section>
+
+<section><p class="qno">Q6</p>
+<h2>没有测到的部分</h2>
+<div class="note"><p>以上所有结果仅在 Linux 上实测。单元测试也在 macOS 上运行，但尚未在 macOS 上做过真实客户端测试。Windows 未测试。Cursor agent、Gemini CLI、Copilot CLI 和 Kiro CLI 尚未覆盖，Streamable HTTP 和 MCP Tasks 内的 elicitation 也未覆盖。</p></div>
+<p>如果你的机器给出不同的答案，<code>askwire --markdown</code> 会输出一张表格，可以直接贴进 <a href="https://github.com/Blackman99/askwire/issues/new/choose">issue</a>。完整参数和 JSON 格式见<a href="../../../docs/">文档</a>。</p>
+</section>
+</main>
+<footer class="foot">
+  <p>Claude Code 2.1.310 · Codex CLI 0.164.0 · opencode 1.19.4 · 2026-10-25 · Linux</p>
+  <p><a href="https://github.com/Blackman99/askwire">github.com/Blackman99/askwire</a> · MIT</p>
+</footer>
+</body>
+</html>

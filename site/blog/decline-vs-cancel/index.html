@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Decline vs cancel, and who is actually answering · askwire</title>
+<meta name="description" content="Measured on Linux: claude -p answers MCP elicitation with cancel in 3-5 ms, codex exec with decline in 1-3 ms. What the spec says, how it was measured, and a server-side guard.">
+<link rel="canonical" href="https://blackman99.github.io/askwire/blog/decline-vs-cancel/">
+<link rel="alternate" hreflang="en" href="https://blackman99.github.io/askwire/blog/decline-vs-cancel/">
+<link rel="alternate" hreflang="zh" href="https://blackman99.github.io/askwire/blog/zh/decline-vs-cancel/">
+<link rel="icon" href="../../img/favicon.svg" type="image/svg+xml">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="askwire">
+<meta property="og:url" content="https://blackman99.github.io/askwire/blog/decline-vs-cancel/">
+<meta property="og:title" content="Decline vs cancel, and who is actually answering">
+<meta property="og:description" content="Measured on Linux: claude -p answers MCP elicitation with cancel in 3-5 ms, codex exec with decline in 1-3 ms. What the spec says, how it was measured, and a server-side guard.">
+<meta property="og:image" content="https://blackman99.github.io/askwire/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://blackman99.github.io/askwire/og.png">
+<meta name="theme-color" content="#141216">
+<link rel="preload" href="../../fonts/Limelight.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../../style.css">
+<link rel="stylesheet" href="../../blog/blog.css">
+</head>
+<body>
+<a class="skip" href="#q1">Skip to the article</a>
+<header class="proscenium">
+  <a class="marquee" href="../../" aria-label="askwire home"><img src="../../img/logo.svg" alt="" width="44" height="44"><span>askwire</span></a>
+  <nav aria-label="Main"><a href="../../docs/">Docs</a><a href="https://github.com/Blackman99/askwire">GitHub</a><a href="../zh/decline-vs-cancel/" lang="zh">中文</a></nav>
+</header>
+<main class="post">
+<div class="spine" aria-hidden="true"></div>
+<header class="post-head">
+  <p class="kicker">askwire notes · 2026-10-25 · <a class="lang" href="../zh/decline-vs-cancel/" hreflang="zh" lang="zh">中文版</a></p>
+  <h1>Decline vs cancel, and who is actually answering</h1>
+  <p class="byline">Measured on Linux only. macOS: unit tests only. Windows: untested.</p>
+</header>
+<p class="lede-b">MCP elicitation lets a server pause a tool call and ask the user something. The reply carries one of three words: <code>accept</code>, <code>decline</code> or <code>cancel</code>. We ran Claude Code, Codex and opencode against a probe server to see which word comes back, how fast, and whether a person could have seen the question at all.</p>
+
+<section id="q1"><p class="qno">Q1</p>
+<h2>What the spec says</h2>
+<p>The MCP specification defines three response actions for <code>elicitation/create</code>:</p>
+<ul class="rules">
+<li><code>accept</code>: the user explicitly approved and submitted, with <code>content</code> holding the data.</li>
+<li><code>decline</code>: the user explicitly declined the request.</li>
+<li><code>cancel</code>: the user dismissed it without making an explicit choice (closed the dialog, pressed Escape).</li>
+</ul>
+<p>All three are described as things a user does. None of them is described as "there was no user". That is the gap this post is about.</p>
+</section>
+
+<section><p class="qno">Q2</p>
+<h2>What came back</h2>
+<p>Latest releases on 2026-10-25, one Linux machine. The answers were the same on every run; the milliseconds vary by machine.</p>
+<div class="tbl-wrap"><table class="tbl">
+<thead><tr><th>client</th><th>how it was run</th><th>advertises</th><th>form</th><th>url</th></tr></thead>
+<tbody>
+<tr><td>Claude Code 2.1.310</td><td><code>claude -p</code></td><td>form + url</td><td class="r"><b>cancel</b>, 4 ms</td><td class="r"><b>cancel</b>, 3 ms</td></tr>
+<tr><td>Claude Code 2.1.310</td><td>interactive, Esc</td><td>form + url</td><td>cancel, 1.7 s</td><td>cancel, 2.0 s</td></tr>
+<tr><td>Codex 0.164.0</td><td><code>codex exec</code></td><td>form + url</td><td class="r"><b>decline</b>, 3 ms</td><td class="r"><b>decline</b>, 1 ms</td></tr>
+<tr><td>Codex 0.164.0</td><td>interactive, Esc</td><td>form + url</td><td>cancel, 1.8 s</td><td class="y"><b>decline</b>, 2.1 s</td></tr>
+<tr><td>opencode 1.19.4</td><td><code>opencode run</code></td><td>none</td><td>not sent</td><td>not sent</td></tr>
+</tbody></table></div>
+<p>Across runs: <code>claude -p</code> answered <code>cancel</code> in 3 to 5 ms and <code>codex exec</code> answered <code>decline</code> in 1 to 3 ms. Neither drew anything; there was no terminal to draw on.</p>
+<p>In the interactive TUIs the question was drawn (askwire saw the probe's nonce on screen after 120 to 230 ms) and then askwire pressed Esc. Claude Code returned <code>cancel</code> both times. Codex returned <code>cancel</code> for the form and <code>decline</code> for the URL request. By the spec, dismissing without a choice is <code>cancel</code>.</p>
+<p>opencode 1.19.4 does not advertise elicitation (its capabilities are <code>{roots:{}}</code>), so the SDK refuses to send one. A raw <code>elicitation/create</code> sent anyway gets <code>-32601 Method not found</code>. That is the honest answer.</p>
+</section>
+
+<section><p class="qno">Q3</p>
+<h2>Who is actually answering</h2>
+<p>Three observations, each from a probe log line:</p>
+<ul class="rules">
+<li><b>Headless <code>decline</code> is not a person saying no.</b> <code>codex exec</code> (approval policy never) returns <code>decline</code>, the word the spec reserves for an explicit refusal, in a couple of milliseconds.</li>
+<li><b><code>cancel</code> looks the same with or without a person.</b> <code>claude -p</code> with nobody there and the Claude Code TUI after a real Esc send the identical reply. A server cannot tell "dismissed" from "nobody existed".</li>
+<li><b><code>accept</code> does not prove a person either.</b> A Claude Code <code>Elicitation</code> hook returning accept produced <code>{"action":"accept","content":{"confirm":true}}</code> in about 20 ms under <code>claude -p</code>. The hook input carries the server name, message, mode and requested schema, so a script can answer anything.</li>
+</ul>
+<p>If the reply came back in 3 ms, no one read it.</p>
+</section>
+
+<section><p class="qno">Q4</p>
+<h2>How the measurement works</h2>
+<ul class="how">
+<li><b>Probe server.</b> A stdio MCP server whose tools each send exactly one <code>elicitation/create</code> (form, url, and one raw request to a client that never advertised the capability), tagged with a per-run nonce such as <code>AW-4FJ7</code>. It logs what the client advertised at <code>initialize</code>, the answer, the round trip and any JSON-RPC error.</li>
+<li><b>Local stand-in model.</b> A small endpoint that speaks the Anthropic Messages, OpenAI Responses and Chat Completions formats just well enough to call the next probe tool and then stop. No account, no API key, no tokens.</li>
+<li><b>Throwaway homes.</b> Each client runs with a temporary <code>HOME</code> / <code>CODEX_HOME</code> / XDG directory, pointed at the stand-in through its documented custom-endpoint settings. Your own configs are never read or written.</li>
+<li><b>Screen check.</b> With <code>--tui</code>, the real interactive client runs in a private tmux server. askwire waits for the nonce to appear on screen, records when, then presses Esc.</li>
+</ul>
+<pre class="code">npx github:Blackman99/askwire            <span class="d"># headless: claude -p, codex exec, opencode run</span>
+npx github:Blackman99/askwire --tui      <span class="d"># the real TUIs in tmux (needs tmux)</span></pre>
+</section>
+
+<section><p class="qno">Q5</p>
+<h2>What your server should do</h2>
+<ol class="rules">
+<li>Treat only <code>accept</code>, with the content you asked for, as consent.</li>
+<li>Treat <code>decline</code> and <code>cancel</code> the same: do not proceed. Clients don't use them consistently.</li>
+<li>Put a timeout on the request and treat no answer as no.</li>
+<li>When the client is running headless, refuse risky actions instead of asking. If the action matters, log that it was accepted; a hook can accept too.</li>
+</ol>
+<pre class="code">const r = await server.server.elicitInput({
+  message: "Delete 312 rows from orders?",
+  requestedSchema: { type: "object", properties: { confirm: { type: "boolean" } }, required: ["confirm"] },
+}, { timeout: 60_000 });                       <span class="d">// no answer in 60 s: treated as no</span>
+
+if (r.action !== "accept" || r.content?.confirm !== true) {
+  <span class="d">// decline and cancel both land here: they mean the same thing to you</span>
+  return { content: [{ type: "text", text: "Not confirmed. Nothing was changed." }] };
+}
+log.info("confirmed via elicitation", { client: server.server.getClientVersion()?.name });  <span class="d">// accept can come from a hook</span></pre>
+</section>
+
+<section><p class="qno">Q6</p>
+<h2>What was not measured</h2>
+<div class="note"><p>Everything above was measured on Linux only. The unit tests also run on macOS, but no real-client run has been done there. Windows is untested. Cursor agent, Gemini CLI, Copilot CLI and Kiro CLI are not covered yet, nor is elicitation over Streamable HTTP or inside MCP Tasks.</p></div>
+<p>If your machine gives a different answer, <code>askwire --markdown</code> prints a table you can paste into an <a href="https://github.com/Blackman99/askwire/issues/new/choose">issue</a>. Full flags and the JSON format are in the <a href="../../docs/">docs</a>.</p>
+</section>
+</main>
+<footer class="foot">
+  <p>Claude Code 2.1.310 · Codex CLI 0.164.0 · opencode 1.19.4 · 2026-10-25 · Linux</p>
+  <p><a href="https://github.com/Blackman99/askwire">github.com/Blackman99/askwire</a> · MIT</p>
+</footer>
+</body>
+</html>

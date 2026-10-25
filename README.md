@@ -6,7 +6,7 @@
 
 askwire runs the AI clients installed on your machine (Claude Code, Codex, opencode) against a probe MCP server and shows what each one really answers to `elicitation/create`: who saw the question, what came back (`accept` / `decline` / `cancel` / error / nothing) and how fast. No account, no API key, no tokens: the model is a local scripted stand-in, and your own client configs are never read or changed.
 
-[Landing page](https://blackman99.github.io/askwire/) · [Docs](https://blackman99.github.io/askwire/docs/) · [Releases](https://github.com/Blackman99/askwire/releases)
+[Landing page](https://blackman99.github.io/askwire/) · [Docs](https://blackman99.github.io/askwire/docs/) · [Releases](https://github.com/Blackman99/askwire/releases) · Blog: [Decline vs cancel, and who is actually answering](https://blackman99.github.io/askwire/blog/decline-vs-cancel/) ([中文](https://blackman99.github.io/askwire/blog/zh/decline-vs-cancel/))
 
 <p align="center"><img src="docs/media/demo.gif" width="880" alt="askwire run in a terminal: claude -p cancels both questions in 3-4 ms, codex exec declines them in 1-3 ms, opencode does not advertise elicitation"></p>
 
@@ -85,6 +85,8 @@ Raw logs: run it yourself, or see the JSON in the [docs](https://blackman99.gith
 - Treat `decline` and `cancel` the same: do not proceed. Clients don't use them consistently.
 - Put a timeout on the request and treat no answer as no.
 - If the action matters, log who accepted. Hooks can accept too.
+
+The longer version, with the spec wording and how it was measured: [Decline vs cancel, and who is actually answering](https://blackman99.github.io/askwire/blog/decline-vs-cancel/) ([中文](https://blackman99.github.io/askwire/blog/zh/decline-vs-cancel/)).
 
 ## Not covered yet
 
