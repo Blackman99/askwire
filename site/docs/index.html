@@ -71,6 +71,10 @@ askwire claude codex       <span class="d"># just these</span></pre>
     <p>Starts each client's real terminal UI inside a private tmux server, waits until the probe's nonce (for example <code>AW-4FJ7</code>) shows up on screen, records how long that took, then presses Esc. That tells you the question was really drawn, and which answer a dismissal produces.</p>
 <pre class="code">askwire --tui
 askwire codex --tui --answer none --timeout 60   <span class="d"># leave the prompt open: see how long the client holds the call</span></pre>
+    <h3>Nobody answers (<code>--wait</code>)</h3>
+    <p>The <code>timeout</code> scenario sends one more form question and never touches it. askwire records whether anything answers within <code>--wait</code> seconds, and with <code>--tui</code> whether the question was on screen and whether the client takes it down in the 10 s after the probe gives up. It is off by default because it takes a minute per client; it always runs last.</p>
+<pre class="code">askwire claude codex --tui --wait 60   <span class="d"># the usual three questions, then one left alone for 60 s</span>
+askwire --tui --scenarios timeout      <span class="d"># only the untouched question (60 s, or 30 s when CI is set)</span></pre>
     <h3>For an issue or a script</h3>
 <pre class="code">askwire --markdown         <span class="d"># table to paste into a bug report</span>
 askwire --json > run.json  <span class="d"># everything, see the reference</span>
@@ -79,7 +83,7 @@ askwire --strict           <span class="d"># exit 1 if any client answered witho
     <p>Want to see what your own setup does, with your real model? Add the probe server to the client yourself and ask the agent to call the <code>askwire_form</code> tool.</p>
 <pre class="code">claude mcp add askwire -- npx -y github:Blackman99/askwire server --log /tmp/askwire.jsonl
 tail -f /tmp/askwire.jsonl</pre>
-    <p>Each line in the log is a JSON event: <code>initialized</code> (with the client's capabilities), <code>sent</code>, then <code>result</code>, <code>error</code> or <code>timeout</code>.</p>
+    <p>Each line in the log is a JSON event: <code>initialized</code> (with the client's capabilities), <code>sent</code>, then <code>result</code>, <code>error</code>, <code>timeout</code> or <code>abandoned</code>. By hand, the <code>askwire_timeout</code> tool waits <code>--wait</code> seconds (default 60).</p>
   </section>
 
   <section id="configuration">
@@ -90,7 +94,8 @@ tail -f /tmp/askwire.jsonl</pre>
       <tbody>
         <tr><td><code>[clients...]</code></td><td>all found</td><td>Any of <code>claude</code>, <code>codex</code>, <code>opencode</code>, <code>gemini</code>. Naming a client that is not installed is reported as a problem, not skipped.</td></tr>
         <tr><td><code>--tui</code></td><td>off</td><td>Run the interactive UI in tmux and check the question is on screen.</td></tr>
-        <tr><td><code>--scenarios</code></td><td><code>form,url,unadvertised</code></td><td>Which probes to send. <code>unadvertised</code> is only sent to a client that did not advertise elicitation.</td></tr>
+        <tr><td><code>--scenarios</code></td><td><code>form,url,unadvertised</code></td><td>Which probes to send, comma separated, or <code>all</code>. <code>unadvertised</code> is only sent to a client that did not advertise elicitation. <code>timeout</code> is opt-in.</td></tr>
+        <tr><td><code>--wait</code></td><td><code>60</code> (<code>30</code> when <code>CI</code> is set)</td><td>Seconds the <code>timeout</code> scenario leaves its question untouched. Giving <code>--wait</code> adds the scenario to the default list; with an explicit <code>--scenarios</code> list, include <code>timeout</code> in it.</td></tr>
         <tr><td><code>--timeout</code></td><td><code>20</code> (server: <code>120</code>)</td><td>Seconds the probe waits for each answer before logging a timeout.</td></tr>
         <tr><td><code>--bin id=path</code></td><td>PATH lookup</td><td>Use a specific binary. Repeat for each client.</td></tr>
         <tr><td><code>--answer</code></td><td><code>esc</code></td><td>TUI only. <code>esc</code> dismisses the question once it is visible; <code>none</code> leaves it open until the timeout.</td></tr>
@@ -101,7 +106,7 @@ tail -f /tmp/askwire.jsonl</pre>
       </tbody>
     </table>
     <h3>What askwire does to your machine</h3>
-    <p>Each client runs with its own temporary home directory (<code>HOME</code>, <code>CODEX_HOME</code>, XDG dirs) and a generated config that points it at <code>127.0.0.1</code>. Your real <code>~/.claude</code>, <code>~/.codex</code> and opencode settings are not read or written. The stand-in model only calls the three probe tools; it never asks for shell or file tools. The run directory is deleted afterwards unless you pass <code>--keep</code> or the run failed. One exception: opencode downloads its provider package on first use, and askwire keeps that cache in <code>~/.cache/askwire/opencode</code> so later runs are fast. Delete it whenever you like.</p>
+    <p>Each client runs with its own temporary home directory (<code>HOME</code>, <code>CODEX_HOME</code>, XDG dirs) and a generated config that points it at <code>127.0.0.1</code>. Your real <code>~/.claude</code>, <code>~/.codex</code>, <code>~/.gemini</code> and opencode settings are not read or written. The stand-in model only calls the probe tools; it never asks for shell or file tools. The run directory is deleted afterwards unless you pass <code>--keep</code> or the run failed. One exception: opencode downloads its provider package on first use, and askwire keeps that cache in <code>~/.cache/askwire/opencode</code> so later runs are fast. Delete it whenever you like.</p>
   </section>
 
   <section id="reference">
@@ -112,7 +117,8 @@ tail -f /tmp/askwire.jsonl</pre>
       <tbody>
         <tr><td><code>answered</code></td><td>The client replied with <code>accept</code>, <code>decline</code> or <code>cancel</code>, after <code>ms</code>.</td></tr>
         <tr><td><code>error</code></td><td>The client replied with a JSON-RPC error, for example <code>-32601 Method not found</code>.</td></tr>
-        <tr><td><code>timeout</code></td><td>No reply within <code>--timeout</code>. The question may be sitting on a screen nobody is watching.</td></tr>
+        <tr><td><code>timeout</code></td><td>No reply within <code>--timeout</code> (<code>--wait</code> for the timeout scenario). <code>limitMs</code> is the bound that applied. No answer is ever filled in for the client.</td></tr>
+        <tr><td><code>abandoned</code></td><td>The client cancelled the tool call while its question was still open (the server saw the abort signal), after <code>ms</code>.</td></tr>
         <tr><td><code>not-advertised</code></td><td>The client did not advertise this mode at <code>initialize</code>, so the probe did not send it.</td></tr>
         <tr><td><code>not-needed</code></td><td>The <code>unadvertised</code> probe is skipped for clients that do advertise elicitation.</td></tr>
         <tr><td><code>not-reached</code></td><td>The stand-in model never got to call that tool. Usually the client crashed or refused the tool; the problem line says why.</td></tr>
@@ -123,9 +129,11 @@ tail -f /tmp/askwire.jsonl</pre>
       <thead><tr><th>verdict</th><th>when</th></tr></thead>
       <tbody>
         <tr><td><b class="bad">CLAIMS SUPPORT · ANSWERS WITHOUT A HUMAN</b></td><td>Advertises elicitation, and answered a question that was never on a screen (every headless answer; a TUI answer whose nonce never appeared).</td></tr>
-        <tr><td><b class="bad">QUESTION NEVER ANSWERED</b></td><td>At least one probe timed out.</td></tr>
+        <tr><td><b class="bad">QUESTION NEVER ANSWERED</b></td><td>A probe timed out with no proof anyone could see it (headless, or the nonce never appeared).</td></tr>
+        <tr><td><b class="warn">GIVES UP · CANCELS THE TOOL CALL</b></td><td>The client cancelled the tool call while a question was open.</td></tr>
         <tr><td><b class="bad">ADVERTISED BUT ERRORS</b></td><td>Advertised a mode, then returned an error for it.</td></tr>
-        <tr><td><b class="good">SHOWN ON SCREEN</b></td><td>TUI run: every advertised question was drawn on the terminal before the answer.</td></tr>
+        <tr><td><b class="good">SHOWN ON SCREEN</b></td><td>TUI run: every advertised question was drawn on the terminal, and each answer followed askwire pressing Esc.</td></tr>
+        <tr><td><b class="good">SHOWN ON SCREEN · WAITS FOR A PERSON</b></td><td>The same, and the untouched question stayed unanswered until the probe gave up. A TUI answer nobody pressed a key for counts as answering without a human.</td></tr>
         <tr><td><b class="warn">NO SUPPORT · SAYS SO</b></td><td>Does not advertise elicitation and rejects an unadvertised request cleanly.</td></tr>
         <tr><td><b>INCOMPLETE</b> / <b>COULD NOT RUN</b></td><td>Something stopped the run; the problem line (and the kept screens with <code>--keep</code>) tell you what.</td></tr>
       </tbody>
@@ -146,7 +154,7 @@ tail -f /tmp/askwire.jsonl</pre>
     ]
   }]
 }</pre>
-    <p><code>seen</code>, <code>seenAfterMs</code> and <code>escPressed</code> only appear in TUI runs. <code>problem</code> appears on a run that could not complete; <code>logDir</code> when its files were kept.</p>
+    <p><code>seen</code>, <code>seenAfterMs</code> and <code>escPressed</code> only appear in TUI runs. <code>stillOnScreen</code> appears on an unanswered TUI question: was it still drawn 10 s after the probe gave up. A timeout result looks like <code>{ "scenario": "timeout", "outcome": { "kind": "timeout", "ms": 60014, "limitMs": 60000 }, "seen": true, "seenAfterMs": 120, "escPressed": false, "stillOnScreen": false }</code>. <code>problem</code> appears on a run that could not complete; <code>logDir</code> when its files were kept.</p>
     <h3>Exit codes</h3>
     <table class="flags">
       <tbody>
@@ -163,16 +171,18 @@ tail -f /tmp/askwire.jsonl</pre>
       <p>Not necessarily: with no terminal there is nobody to ask, and answering quickly beats hanging. The problem is for your server. The client still advertised elicitation at <code>initialize</code>, and the answer it returns (<code>cancel</code> from Claude Code, <code>decline</code> from Codex) is indistinguishable from what a person would send. Your server cannot tell "the user said no" from "there was no user".</p></details>
     <details><summary>Why does it matter whether I get decline or cancel?</summary>
       <p>The spec gives them different meanings: decline means the user explicitly refused, cancel means they dismissed the prompt without choosing. A server might reasonably retry after a cancel and stop after a decline. In our runs, Codex returned <code>decline</code> when Esc dismissed its URL prompt, and also in headless mode where nobody was there. Treat both as "do not proceed" and do not build retry logic on the difference.</p></details>
+    <details><summary>What happens if nobody answers the question?</summary>
+      <p>In our runs, nothing. Claude Code 2.1.310 and Codex 0.164.0 drew the question in their TUIs within about 200 ms, then kept it open for the full 60 s without answering; neither cancelled the tool call. Only the probe's own timeout ended it (the TypeScript SDK then sends <code>notifications/cancelled</code>). Codex took the stale question down every time. Claude Code took it down when other questions came before it in the same turn and left it on screen when it was the only one. Headless, the same question was answered at once (<code>cancel</code> in 2 ms, <code>decline</code> in 1 ms). So pass a timeout to <code>elicitInput</code>, treat it as no, and make sure an answer that arrives late cannot do anything. Measure your own clients with <code>askwire --tui --wait 60</code>.</p></details>
     <details><summary>Does askwire use my API key or send anything to a model provider?</summary>
-      <p>No. Each client talks to a stand-in endpoint on <code>127.0.0.1</code> that speaks just enough of the Anthropic Messages, OpenAI Responses and Chat Completions formats to call the probe tools. No tokens are spent and nothing leaves the machine. (The clients themselves may still try their own update checks or telemetry.)</p></details>
+      <p>No. Each client talks to a stand-in endpoint on <code>127.0.0.1</code> that speaks just enough of the Anthropic Messages, OpenAI Responses, Chat Completions and Gemini formats to call the probe tools. No tokens are spent and nothing leaves the machine. (The clients themselves may still try their own update checks or telemetry.)</p></details>
     <details><summary>Can a client accept an elicitation without a person?</summary>
       <p>Yes. Claude Code's <code>Elicitation</code> hook can return an answer, including <code>accept</code> with content, before anything is shown; in our test it did so in about 20 ms. That is a feature for automation, and it is why your server should log accepted answers, not assume a person typed them.</p></details>
     <details><summary>Why is my client missing?</summary>
-      <p>askwire 0.1 drives Claude Code, Codex CLI and opencode, because each can be pointed at a local model and run both headless and as a TUI. Cursor, VS Code, Gemini CLI and others are on the <a href="https://github.com/Blackman99/askwire/blob/main/ROADMAP.md">roadmap</a>. If a client can be scripted, <a href="https://github.com/Blackman99/askwire/issues/new/choose">open an issue</a>.</p></details>
+      <p>askwire drives Claude Code, Codex CLI, opencode and Gemini CLI, because each can be pointed at a local model and run both headless and as a TUI. Cursor, VS Code, Copilot CLI and others are on the <a href="https://github.com/Blackman99/askwire/blob/main/ROADMAP.md">roadmap</a>. If a client can be scripted, <a href="https://github.com/Blackman99/askwire/issues/new/choose">open an issue</a>.</p></details>
     <details><summary>The TUI run says the question never appeared.</summary>
       <p>Run again with <code>--keep</code> and look at <code>screen-*.txt</code> in the run directory: it is the exact terminal text askwire saw. Common causes are a first-run dialog the adapter does not know yet (new client versions add them) and a very slow machine; try <code>--timeout 60</code>.</p></details>
     <details><summary>How fresh are the numbers on the homepage?</summary>
-      <p>They come from runs on 2026-10-25 with Claude Code 2.1.310, Codex CLI 0.164.0 and opencode 1.19.4, reproduced on a GitHub Actions runner. A <a href="https://github.com/Blackman99/askwire/actions/workflows/ci.yml">daily CI job</a> installs the latest releases and runs askwire again, headless and <code>--tui</code>, with the reports in the job summary.</p></details>
+      <p>They come from runs on 2026-10-25 and 2026-10-26 with Claude Code 2.1.310, Codex CLI 0.164.0, opencode 1.19.4 and Gemini CLI 0.65.0, reproduced on a GitHub Actions runner. A <a href="https://github.com/Blackman99/askwire/actions/workflows/ci.yml">daily CI job</a> installs the latest releases and runs askwire again, headless, <code>--tui</code> and the untouched question at 30 s, with the reports in the job summary.</p></details>
   </section>
 </main>
 </div>

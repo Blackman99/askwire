@@ -15,6 +15,7 @@ export interface RunOptions {
   mode: Mode;
   scenarios: Scenario[];
   timeoutMs: number;   // per elicitation request
+  waitMs: number;      // timeout scenario: how long the question is left untouched
   nonce: string;
   root: string;        // parent dir for throwaway dirs
   answer: "esc" | "none";
@@ -43,7 +44,7 @@ export async function runClient(o: RunOptions): Promise<ClientRun> {
   const standin = await startStandin(o.scenarios);
   const probe = {
     command: process.execPath,
-    args: [CLI, "server", "--log", log, "--nonce", o.nonce, "--timeout", String(o.timeoutMs / 1000), "--scenarios", o.scenarios.join(",")],
+    args: [CLI, "server", "--log", log, "--nonce", o.nonce, "--timeout", String(o.timeoutMs / 1000), "--wait", String(o.waitMs / 1000), "--scenarios", o.scenarios.join(",")],
   };
   const prep = o.adapter.prepare({ dir, workDir, standinUrl: standin.url, probe, bin: o.bin, mode: o.mode, prompt: PROMPT, baseEnv: baseEnv() });
   const run: ClientRun = {
@@ -52,10 +53,11 @@ export async function runClient(o: RunOptions): Promise<ClientRun> {
   };
   const seen = new Map<Scenario, number>();
   const escs = new Set<Scenario>();
+  const lingering = new Map<Scenario, boolean>();
   try {
     if (o.mode === "headless") await headless(o, prep, dir);
     else {
-      const problem = await tui(o, prep, dir, log, seen, escs);
+      const problem = await tui(o, prep, dir, log, seen, escs, lingering);
       if (problem) run.problem = problem;
     }
   } finally {
@@ -77,7 +79,9 @@ export async function runClient(o: RunOptions): Promise<ClientRun> {
     if (o.mode !== "tui") return r;
     const sent = events.find((e) => e.ev === "sent" && e.scenario === r.scenario);
     const at = seen.get(r.scenario);
-    return { ...r, seen: at !== undefined, seenAfterMs: at !== undefined && sent ? Math.max(0, at - sent.t) : undefined, escPressed: escs.has(r.scenario) };
+    const out: ScenarioResult = { ...r, seen: at !== undefined, seenAfterMs: at !== undefined && sent ? Math.max(0, at - sent.t) : undefined, escPressed: escs.has(r.scenario) };
+    if (lingering.has(r.scenario)) out.stillOnScreen = lingering.get(r.scenario);
+    return out;
   });
   if (!run.problem && !events.some((e) => e.ev === "initialized")) {
     const tail = out.trim().split("\n").slice(-3).join(" ").slice(0, 200);
@@ -86,12 +90,17 @@ export async function runClient(o: RunOptions): Promise<ClientRun> {
   return run;
 }
 
+/** worst-case time the probe itself may spend waiting for answers */
+export function budget(o: Pick<RunOptions, "scenarios" | "timeoutMs" | "waitMs">): number {
+  return o.scenarios.reduce((sum, s) => sum + (s === "timeout" ? o.waitMs : o.timeoutMs), 0);
+}
+
 function safeRead(p: string) { try { return fs.readFileSync(p, "utf8"); } catch { return ""; } }
 
 async function headless(o: RunOptions, prep: { argv: string[]; env: Record<string, string>; cwd: string }, dir: string) {
   const outFd = fs.openSync(path.join(dir, "client.out"), "w");
   const child = spawn(prep.argv[0], prep.argv.slice(1), { cwd: prep.cwd, env: prep.env, stdio: ["ignore", outFd, outFd] });
-  const limit = o.timeoutMs * o.scenarios.length + 90_000;
+  const limit = budget(o) + 90_000;
   await new Promise<void>((resolve) => {
     const timer = setTimeout(() => { child.kill("SIGTERM"); setTimeout(() => child.kill("SIGKILL"), 3000); }, limit);
     child.on("exit", () => { clearTimeout(timer); resolve(); });
@@ -104,7 +113,10 @@ function tmux(args: string[], sock: string): string {
   return execFileSync("tmux", ["-L", sock, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
 }
 
-async function tui(o: RunOptions, prep: { argv: string[]; env: Record<string, string>; cwd: string }, dir: string, log: string, seen: Map<Scenario, number>, escs: Set<Scenario>): Promise<string | undefined> {
+/** How long the question is watched after the probe gives up on it (see ScenarioResult.stillOnScreen). */
+export const LINGER_MS = 10_000;
+
+async function tui(o: RunOptions, prep: { argv: string[]; env: Record<string, string>; cwd: string }, dir: string, log: string, seen: Map<Scenario, number>, escs: Set<Scenario>, lingering: Map<Scenario, boolean>): Promise<string | undefined> {
   try { execFileSync("tmux", ["-V"], { stdio: "ignore" }); } catch { return "--tui needs tmux on PATH"; }
   const sock = `askwire-${process.pid}-${o.adapter.id}`;
   const launch = path.join(dir, "launch.sh");
@@ -146,14 +158,34 @@ async function tui(o: RunOptions, prep: { argv: string[]; env: Record<string, st
         if (!seen.has(pend.scenario) && scr.includes(o.nonce)) {
           seen.set(pend.scenario, Date.now());
           fs.writeFileSync(path.join(dir, `screen-${pend.scenario}.txt`), scr);
-          o.onStep?.(`${pend.scenario}: question is on screen`);
+          o.onStep?.(pend.scenario === "timeout"
+            ? `timeout: question is on screen; leaving it untouched for up to ${Math.round(o.waitMs / 1000)} s`
+            : `${pend.scenario}: question is on screen`);
         }
-        if (seen.has(pend.scenario) && o.answer === "esc" && Date.now() - seen.get(pend.scenario)! > 1500 && Date.now() - escAt > 2000) {
+        // the timeout scenario is about what happens when nobody touches the question: never press anything
+        if (pend.scenario !== "timeout" && seen.has(pend.scenario) && o.answer === "esc" && Date.now() - seen.get(pend.scenario)! > 1500 && Date.now() - escAt > 2000) {
           key("Escape"); escAt = Date.now(); escs.add(pend.scenario);
         }
       }
-      if (done(evs)) { await sleep(500); break; }
-      if (Date.now() - start > o.timeoutMs * o.scenarios.length + 120_000) { problem = "overall time limit reached"; break; }
+      if (done(evs)) {
+        // If the last question went unanswered, look again once the probe has given up on it
+        // (the SDK sends notifications/cancelled): does the client take it down, or leave it up?
+        const lastSent = [...evs].reverse().find((e) => e.ev === "sent");
+        const end = lastSent && [...evs].reverse().find((e) => "scenario" in e && e.scenario === lastSent.scenario && e.ev !== "sent");
+        if (lastSent && "scenario" in lastSent && end?.ev === "timeout" && seen.has(lastSent.scenario)) {
+          // Watch for LINGER_MS: some clients clear the question once their turn finishes, so one glance is not enough.
+          let after = screen() || lastScreen;
+          for (const until = Date.now() + LINGER_MS; after.includes(o.nonce) && Date.now() < until; ) {
+            await sleep(250);
+            after = screen() || after;
+          }
+          lastScreen = after;
+          lingering.set(lastSent.scenario, after.includes(o.nonce));
+          fs.writeFileSync(path.join(dir, "screen-after-timeout.txt"), after);
+        } else await sleep(500);
+        break;
+      }
+      if (Date.now() - start > budget(o) + 120_000) { problem = "overall time limit reached"; break; }
     }
   } finally {
     fs.writeFileSync(path.join(dir, "screen-last.txt"), lastScreen);

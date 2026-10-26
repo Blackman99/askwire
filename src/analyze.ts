@@ -28,7 +28,8 @@ export function outcomeFor(events: ProbeEvent[], s: Scenario): Outcome | null {
   switch (last.ev) {
     case "result": return { kind: "answered", action: last.action, ms: last.ms, content: last.content };
     case "error": return { kind: "error", code: last.code, message: last.message, ms: last.ms };
-    case "timeout": return { kind: "timeout", ms: last.ms };
+    case "timeout": return last.limitMs !== undefined ? { kind: "timeout", ms: last.ms, limitMs: last.limitMs } : { kind: "timeout", ms: last.ms };
+    case "abandoned": return last.reason !== undefined ? { kind: "abandoned", ms: last.ms, reason: last.reason } : { kind: "abandoned", ms: last.ms };
     case "skipped": return last.reason === "not-advertised" ? { kind: "not-advertised" } : { kind: "not-needed" };
     default: return null;
   }
@@ -49,16 +50,28 @@ export function results(events: ProbeEvent[], scenarios: Scenario[], notReached:
   return scenarios.map((s) => ({ scenario: s, outcome: outcomeFor(events, s) ?? { kind: "not-reached", why: notReached(s) } }));
 }
 
-export type Verdict = "human" | "no-human" | "honest" | "hung" | "broken" | "unknown";
+/**
+ * human     the question was on screen and a person (askwire) dismissed it
+ * waits     the question was on screen and the client kept waiting for a person until askwire stopped
+ * no-human  an answer came back that no person gave
+ * honest    not advertised and said so (or nothing needed)
+ * hung      no answer and nobody could ever have seen the question
+ * dropped   the client cancelled the tool call without answering
+ */
+export type Verdict = "human" | "waits" | "no-human" | "honest" | "hung" | "dropped" | "broken" | "unknown";
 
 /** One-word judgement for a scenario row, from the server author's point of view. */
 export function verdictOf(r: ScenarioResult, mode: "headless" | "tui"): Verdict {
   const o = r.outcome;
   if (o.kind === "not-advertised" || o.kind === "not-needed") return "honest";
-  if (o.kind === "timeout") return "hung";
+  if (o.kind === "timeout") return mode === "tui" && r.seen ? "waits" : "hung";
+  if (o.kind === "abandoned") return "dropped";
   if (o.kind === "not-reached") return "unknown";
   if (o.kind === "error") return r.scenario === "unadvertised" ? "honest" : "broken";
-  if (mode === "tui") return r.seen ? "human" : "no-human";
+  // TUI: a person (askwire's Esc) only acted if the question was on screen and a key was pressed
+  // while it was pending. The timeout scenario never presses anything, so any answer there came
+  // from the client itself.
+  if (mode === "tui") return r.seen && r.escPressed ? "human" : "no-human";
   return "no-human"; // headless: no terminal to show anything on
 }
 
@@ -69,7 +82,9 @@ export function clientVerdict(run: ClientRun): { word: string; tone: "bad" | "go
   if (v.includes("hung")) return { word: "QUESTION NEVER ANSWERED", tone: "bad" };
   if (claims && v.includes("no-human")) return { word: "CLAIMS SUPPORT · ANSWERS WITHOUT A HUMAN", tone: "bad" };
   if (v.includes("broken")) return { word: "ADVERTISED BUT ERRORS", tone: "bad" };
-  if (claims && v.every((x) => x === "human" || x === "honest")) return { word: "SHOWN ON SCREEN", tone: "good" };
+  if (v.includes("dropped")) return { word: "GIVES UP · CANCELS THE TOOL CALL", tone: "warn" };
+  if (claims && v.every((x) => x === "human" || x === "honest" || x === "waits"))
+    return { word: v.includes("waits") ? "SHOWN ON SCREEN · WAITS FOR A PERSON" : "SHOWN ON SCREEN", tone: "good" };
   if (!claims && v.every((x) => x === "honest")) return { word: "NO SUPPORT · SAYS SO", tone: "warn" };
   return { word: "INCOMPLETE", tone: "dim" };
 }

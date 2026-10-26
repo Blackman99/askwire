@@ -3,11 +3,13 @@
 askwire answers one question: when an MCP server sends `elicitation/create`, does a human see it, and what comes back? Everything here serves that question.
 
 ## v0.2: more clients, more transports
-- Adapters for Cursor agent CLI, Gemini CLI, GitHub Copilot CLI and Kiro CLI.
+- Adapters for Cursor agent CLI, GitHub Copilot CLI and Kiro CLI. (Gemini CLI: done.)
 - Streamable HTTP probe server (not only stdio).
 - Elicitation inside MCP Tasks (`tasks/*`).
-- Timeout scenario: does the client ever answer if nobody touches it?
+- Timeout scenario: does the client ever answer if nobody touches it? (Done: `--wait`.)
 - Defaults scenario: does `accept` carry schema defaults (SEP-1034)?
+
+- Spec 2026-07-28: the stateless protocol replaces server-initiated `elicitation/create` with `InputRequiredResult` / `inputResponses` (MRTR). Probe both paths once clients and the TypeScript SDK ship it.
 
 ## v0.3: answering, not only dismissing
 - Scripted TUI answers (accept with a value), checking that content round-trips and that schema validation happens.

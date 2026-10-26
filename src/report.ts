@@ -3,11 +3,15 @@ import type { ClientRun, ScenarioResult } from "./types.js";
 import { VERSION, REPO_URL } from "./meta.js";
 
 export interface Paint { red(s: string): string; green(s: string): string; yellow(s: string): string; dim(s: string): string; bold(s: string): string; }
+/** "a", "a and b", "a, b and c" */
+const names = (xs: string[]): string => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
+
 export function paint(on: boolean): Paint {
   const w = (a: number, b: number) => (s: string) => (on ? `\x1b[${a}m${s}\x1b[${b}m` : s);
   return { red: w(31, 39), green: w(32, 39), yellow: w(33, 39), dim: w(2, 22), bold: w(1, 22) };
 }
 
+const fmtSec = (ms: number) => `${Math.round(ms / 100) / 10} s`.replace(".0 s", " s");
 const fmtMs = (ms: number) => (ms < 1 ? "<1 ms" : ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`);
 
 export function rowText(r: ScenarioResult, run: ClientRun): { action: string; detail: string } {
@@ -17,13 +21,23 @@ export function rowText(r: ScenarioResult, run: ClientRun): { action: string; de
       const spec = o.action === "decline" ? " (spec: decline = the user explicitly said no)" : "";
       let detail: string;
       if (run.mode === "headless") detail = `in ${fmtMs(o.ms)} · no terminal, so the client answered, not a person${spec}`;
+      else if (r.seen && !r.escPressed) detail = `in ${fmtMs(o.ms)} · on screen after ${fmtMs(r.seenAfterMs ?? 0)}, nobody pressed a key, the client answered by itself`;
       else if (r.seen && r.escPressed) detail = `in ${fmtMs(o.ms)} · on screen after ${fmtMs(r.seenAfterMs ?? 0)}, askwire pressed Esc${o.action === "decline" ? " (spec: dismissing without a choice is cancel, not decline)" : o.action === "accept" ? " and the client still accepted" : ""}`;
       else if (r.seen) detail = `in ${fmtMs(o.ms)} · on screen after ${fmtMs(r.seenAfterMs ?? 0)}`;
       else detail = `in ${fmtMs(o.ms)} · the question never appeared on screen${spec}`;
       return { action: o.action, detail };
     }
     case "error": return { action: "error", detail: `${o.code ?? ""} ${o.message.replace(/^MCP error -?\d+:\s*/, "")}`.trim().slice(0, 120) + ` (after ${fmtMs(o.ms)})` };
-    case "timeout": return { action: "silence", detail: `no answer within ${fmtMs(o.ms)}; the tool call just waits` };
+    case "timeout": {
+      const within = `no answer within ${fmtSec(o.limitMs ?? o.ms)}`;
+      if (run.mode === "tui" && r.seen) {
+        const after = r.stillOnScreen === true ? "; still on screen 10 s after the server gave up" : r.stillOnScreen === false ? "; taken down within 10 s of the server giving up" : "";
+        return { action: "silence", detail: `${within} · on screen after ${fmtMs(r.seenAfterMs ?? 0)}, nobody pressed a key, the client kept waiting${after}` };
+      }
+      if (run.mode === "tui") return { action: "silence", detail: `${within} · the question never appeared on screen; the tool call just waits` };
+      return { action: "silence", detail: `${within} · no terminal and no answer; the tool call just waits` };
+    }
+    case "abandoned": return { action: "dropped", detail: `the client cancelled the tool call after ${fmtMs(o.ms)} without answering the question` };
     case "not-advertised": return { action: "—", detail: "not advertised at initialize, so nothing was sent" };
     case "not-needed": return { action: "—", detail: "skipped: client advertises elicitation" };
     case "not-reached": return { action: "?", detail: `not reached: ${o.why}` };
@@ -52,7 +66,7 @@ export function renderText(runs: ClientRun[], opts: { color: boolean; nonce: str
       if (r.outcome.kind === "not-needed") continue;
       const t = rowText(r, run);
       const vv = verdictOf(r, run.mode);
-      const col = vv === "human" ? p.green : vv === "honest" ? p.dim : vv === "unknown" ? p.yellow : p.red;
+      const col = vv === "human" || vv === "waits" ? p.green : vv === "dropped" ? p.yellow : vv === "honest" ? p.dim : vv === "unknown" ? p.yellow : p.red;
       out.push(`  ${p.dim("│")} ${r.scenario.padEnd(13)}${col(t.action.padEnd(9))}${t.detail}`);
     }
     out.push(`  ${p.dim("└")} ${tone(v.word)}`, "");
@@ -75,8 +89,22 @@ export function takeaways(runs: ClientRun[]): string[] {
     t.push("Advertising `elicitation` does not mean a person is there. Headless runs answer for them.");
   if (actions.has("decline") && actions.has("cancel"))
     t.push("decline and cancel are not used consistently across clients. Treat both as \"do not proceed\".");
-  if (runs.some((r) => r.results.some((x) => x.outcome.kind === "timeout")))
+  const silent = runs.filter((r) => r.results.some((x) => x.outcome.kind === "timeout"));
+  const waited = silent.filter((r) => r.mode === "tui" && r.results.some((x) => x.outcome.kind === "timeout" && x.seen));
+  if (waited.length) {
+    const longest = Math.max(...waited.flatMap((r) => r.results.flatMap((x) => (x.outcome.kind === "timeout" ? [x.outcome.limitMs ?? x.outcome.ms] : []))));
+    t.push(`${names(waited.map((r) => r.client))} kept the question open for ${fmtSec(longest)} with nobody there. Silence is not consent: put your own timeout on elicitInput and treat it as no.`);
+  }
+  if (silent.some((r) => !waited.includes(r)))
     t.push("At least one client never answers. Always pass a timeout to elicitInput.");
+  const selfAnswered = runs.filter((r) => r.mode === "tui" && r.results.some((x) => x.scenario === "timeout" && x.outcome.kind === "answered"));
+  if (selfAnswered.length)
+    t.push(`${names(selfAnswered.map((r) => r.client))} answered a question nobody touched. That answer is the client's, not a person's.`);
+  const linger = runs.filter((r) => r.results.some((x) => x.stillOnScreen));
+  if (linger.length)
+    t.push(`${names(linger.map((r) => r.client))} still showed the question 10 s after your server stopped waiting and sent notifications/cancelled. Make a late answer harmless.`);
+  if (runs.some((r) => r.results.some((x) => x.outcome.kind === "abandoned")))
+    t.push("A client can cancel the tool call while your question is still open. Handle the abort signal and do nothing.");
   t.push("Only `accept` with the content you asked for counts as consent. Hooks can accept too, so log it.");
   return t;
 }

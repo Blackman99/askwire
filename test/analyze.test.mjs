@@ -41,7 +41,8 @@ test("unreached scenarios carry the reason", () => {
 test("verdicts: headless answer = no human, tui seen = human, unadvertised error = honest", () => {
   const ans = { scenario: "form", outcome: { kind: "answered", action: "cancel", ms: 3 } };
   assert.equal(verdictOf(ans, "headless"), "no-human");
-  assert.equal(verdictOf({ ...ans, seen: true }, "tui"), "human");
+  assert.equal(verdictOf({ ...ans, seen: true, escPressed: true }, "tui"), "human");
+  assert.equal(verdictOf({ ...ans, seen: true, escPressed: false }, "tui"), "no-human", "on screen but nobody pressed a key");
   assert.equal(verdictOf({ ...ans, seen: false }, "tui"), "no-human");
   assert.equal(verdictOf({ scenario: "unadvertised", outcome: { kind: "error", code: -32601, message: "x", ms: 1 } }, "headless"), "honest");
   assert.equal(verdictOf({ scenario: "form", outcome: { kind: "error", code: -32603, message: "x", ms: 1 } }, "headless"), "broken");
@@ -53,11 +54,41 @@ test("client verdict words", () => {
   const headless = { ...base, mode: "headless", results: [{ scenario: "form", outcome: { kind: "answered", action: "decline", ms: 2 } }] };
   assert.match(clientVerdict(headless).word, /WITHOUT A HUMAN/);
   assert.equal(clientVerdict(headless).tone, "bad");
-  const tui = { ...base, mode: "tui", results: [{ scenario: "form", seen: true, outcome: { kind: "answered", action: "cancel", ms: 2000 } }] };
+  const tui = { ...base, mode: "tui", results: [{ scenario: "form", seen: true, escPressed: true, outcome: { kind: "answered", action: "cancel", ms: 2000 } }] };
   assert.equal(clientVerdict(tui).tone, "good");
   const none = { ...base, advertised: { form: false, url: false, raw: {} }, mode: "headless", results: [
     { scenario: "form", outcome: { kind: "not-advertised" } },
     { scenario: "unadvertised", outcome: { kind: "error", code: -32601, message: "Method not found", ms: 3 } }] };
   assert.match(clientVerdict(none).word, /SAYS SO/);
   assert.match(clientVerdict({ ...base, mode: "headless", results: [], problem: "boom" }).word, /COULD NOT RUN/);
+});
+
+test("timeout outcomes: limit is carried, never turned into an answer", () => {
+  const ev = [
+    init({ elicitation: { form: {} } }),
+    { ev: "sent", t: 2, scenario: "timeout", mode: "form", limitMs: 30000 },
+    { ev: "timeout", t: 30003, scenario: "timeout", ms: 30001, limitMs: 30000 },
+  ];
+  assert.deepEqual(outcomeFor(ev, "timeout"), { kind: "timeout", ms: 30001, limitMs: 30000 });
+  const ab = [{ ev: "sent", t: 1, scenario: "timeout", mode: "form" }, { ev: "abandoned", t: 9, scenario: "timeout", ms: 8, reason: "cancelled" }];
+  assert.deepEqual(outcomeFor(ab, "timeout"), { kind: "abandoned", ms: 8, reason: "cancelled" });
+  assert.equal(pendingScenario(ab), null);
+});
+
+test("timeout verdicts: waiting on screen is good, silence nobody can see is hung, self-answer is no human", () => {
+  const silent = { scenario: "timeout", outcome: { kind: "timeout", ms: 60000, limitMs: 60000 } };
+  assert.equal(verdictOf({ ...silent, seen: true }, "tui"), "waits");
+  assert.equal(verdictOf({ ...silent, seen: false }, "tui"), "hung");
+  assert.equal(verdictOf(silent, "headless"), "hung");
+  assert.equal(verdictOf({ scenario: "timeout", seen: true, escPressed: false, outcome: { kind: "answered", action: "cancel", ms: 30000 } }, "tui"), "no-human");
+  assert.equal(verdictOf({ scenario: "timeout", outcome: { kind: "abandoned", ms: 5 } }, "tui"), "dropped");
+
+  const base = { client: "x", version: "1", command: "x", mode: "tui", advertised: { form: true, url: true, raw: {} } };
+  const esc = { scenario: "form", seen: true, escPressed: true, outcome: { kind: "answered", action: "cancel", ms: 1800 } };
+  const waits = clientVerdict({ ...base, results: [esc, { ...silent, seen: true }] });
+  assert.equal(waits.word, "SHOWN ON SCREEN · WAITS FOR A PERSON");
+  assert.equal(waits.tone, "good");
+  assert.equal(clientVerdict({ ...base, results: [esc, { ...silent, seen: false }] }).tone, "bad");
+  assert.match(clientVerdict({ ...base, results: [esc, { scenario: "timeout", outcome: { kind: "abandoned", ms: 5 } }] }).word, /GIVES UP/);
+  assert.equal(clientVerdict({ ...base, results: [esc, { scenario: "timeout", seen: true, outcome: { kind: "answered", action: "cancel", ms: 30000 } }] }).tone, "bad");
 });

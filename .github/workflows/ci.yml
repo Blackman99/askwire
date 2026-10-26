@@ -54,10 +54,14 @@ jobs:
           node dist/cli.js --tui --json > tui.json
           node scripts/assert-run.mjs tui.json
           node dist/cli.js --tui --markdown | tee tui.md
+      - name: interactive, nobody answers (tmux, 30 s bound)
+        run: |
+          node dist/cli.js --tui --scenarios timeout --json > tui-timeout.json
+          node scripts/assert-run.mjs tui-timeout.json | tee tui-timeout.txt
       - name: summary
         if: always()
         run: |
-          { echo "### headless"; cat headless.md || true; echo; echo "### interactive"; cat tui.md || true; } >> "$GITHUB_STEP_SUMMARY"
+          { echo "### headless"; cat headless.md || true; echo; echo "### interactive"; cat tui.md || true; echo; echo "### interactive, nobody answers"; echo '```'; cat tui-timeout.txt || true; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
