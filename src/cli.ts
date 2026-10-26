@@ -6,7 +6,7 @@ import { makeRoot, runClient } from "./runner.js";
 import { runProbeServer } from "./probe-server.js";
 import { renderMarkdown, renderText, paint } from "./report.js";
 import { clientVerdict } from "./analyze.js";
-import { ALL_SCENARIOS, type ClientRun, type Scenario } from "./types.js";
+import { ALL_SCENARIOS, DEFAULT_SCENARIOS, type ClientRun, type Scenario } from "./types.js";
 import { VERSION, DOCS_URL } from "./meta.js";
 
 const HELP = `askwire ${VERSION} — does your MCP server's elicitation reach a human?
@@ -24,8 +24,12 @@ Usage
 Options
   --tui                 run the interactive client inside tmux and check the
                         question is really drawn on screen (needs tmux)
-  --scenarios <list>    form,url,unadvertised (default: all)
+  --scenarios <list>    form,url,unadvertised,timeout or all
+                        (default: form,url,unadvertised)
   --timeout <seconds>   how long the probe waits for each answer (default 20)
+  --wait <seconds>      timeout scenario: leave one question untouched this long
+                        and record whether the client ever answers (default 60,
+                        30 when CI is set; implies --scenarios ...,timeout)
   --bin <id>=<path>     use a specific binary, e.g. --bin claude=./node_modules/.bin/claude
   --answer esc|none     TUI: press Esc once the question is visible (default) or leave it
   --json                print machine-readable results
@@ -39,6 +43,7 @@ Options
 Examples
   npx github:Blackman99/askwire
   npx github:Blackman99/askwire claude codex --tui
+  npx github:Blackman99/askwire --tui --wait 60   # does anyone answer if nobody touches it?
   askwire server --log /tmp/askwire.jsonl     # add to any MCP client by hand
 
 Docs: ${DOCS_URL}`;
@@ -47,7 +52,7 @@ interface Args { cmd: "run" | "server" | "clients" | "help" | "version"; clients
 
 export function parseArgs(argv: string[]): Args {
   const a: Args = { cmd: "run", clients: [], flags: new Map(), bins: new Map() };
-  const valued = new Set(["--scenarios", "--timeout", "--bin", "--answer", "--log", "--nonce"]);
+  const valued = new Set(["--scenarios", "--timeout", "--wait", "--bin", "--answer", "--log", "--nonce"]);
   for (let i = 0; i < argv.length; i++) {
     const x = argv[i];
     if (x === "-h" || x === "--help") { a.cmd = "help"; continue; }
@@ -73,19 +78,34 @@ export function parseArgs(argv: string[]): Args {
 
 class UsageError extends Error {}
 
-export function parseScenarios(v: string | true | undefined): Scenario[] {
-  if (v === undefined || v === true) return [...ALL_SCENARIOS];
-  const list = v.split(",").map((s) => s.trim()).filter(Boolean);
+export function parseScenarios(v: string | true | undefined, wait = false): Scenario[] {
+  if (v === true) throw new UsageError(`--scenarios needs a value (choose from ${ALL_SCENARIOS.join(", ")} or all)`);
+  if (v === undefined) return wait ? [...DEFAULT_SCENARIOS, "timeout"] : [...DEFAULT_SCENARIOS];
+  if (v.trim() === "all") return [...ALL_SCENARIOS];
+  const list = [...new Set(v.split(",").map((s) => s.trim()).filter(Boolean))];
+  if (!list.length) throw new UsageError(`--scenarios is empty (choose from ${ALL_SCENARIOS.join(", ")} or all)`);
   const bad = list.filter((s) => !ALL_SCENARIOS.includes(s as Scenario));
-  if (bad.length) throw new UsageError(`unknown scenario "${bad[0]}" (choose from ${ALL_SCENARIOS.join(", ")})`);
+  if (bad.length) throw new UsageError(`unknown scenario "${bad[0]}" (choose from ${ALL_SCENARIOS.join(", ")} or all)`);
+  if (wait && !list.includes("timeout")) throw new UsageError(`--wait only applies to the timeout scenario; add it: --scenarios ${[...list, "timeout"].join(",")}`);
   return list as Scenario[];
 }
 
-function parseTimeout(v: string | true | undefined, def: number): number {
+export function orderScenarios(list: Scenario[]): Scenario[] {
+  return [...list.filter((s) => s !== "timeout"), ...list.filter((s) => s === "timeout")];
+}
+
+export function parseSeconds(flag: string, v: string | true | undefined, def: number): number {
   if (v === undefined || v === true) return def;
   const n = Number(v);
-  if (!Number.isFinite(n) || n <= 0 || n > 3600) throw new UsageError(`--timeout must be a number of seconds between 0 and 3600, got "${v}"`);
+  if (!Number.isFinite(n) || n <= 0 || n > 3600) throw new UsageError(`${flag} must be a number of seconds between 0 and 3600, got "${v}"`);
   return Math.round(n * 1000);
+}
+const parseTimeout = (v: string | true | undefined, def: number) => parseSeconds("--timeout", v, def);
+
+/** Default bound for the timeout scenario: a minute locally, half that on CI runners. */
+export function defaultWaitMs(env: NodeJS.ProcessEnv = process.env): number {
+  const ci = env.CI && env.CI !== "false" && env.CI !== "0";
+  return ci ? 30_000 : 60_000;
 }
 
 function nonce(): string {
@@ -118,7 +138,8 @@ async function main(argv: string[]): Promise<number> {
       log: typeof log === "string" ? log : undefined,
       nonce: typeof args.flags.get("--nonce") === "string" ? String(args.flags.get("--nonce")) : nonce(),
       timeoutMs: parseTimeout(args.flags.get("--timeout"), 120_000),
-      scenarios: parseScenarios(args.flags.get("--scenarios")),
+      waitMs: parseSeconds("--wait", args.flags.get("--wait"), defaultWaitMs()),
+      scenarios: args.flags.has("--scenarios") ? parseScenarios(args.flags.get("--scenarios")) : [...ALL_SCENARIOS],
     });
     return -1; // keep running until stdin closes
   }
@@ -138,14 +159,21 @@ async function main(argv: string[]): Promise<number> {
   const answer = args.flags.get("--answer") ?? "esc";
   if (answer !== "esc" && answer !== "none") throw new UsageError(`--answer must be esc or none`);
   const mode = args.flags.has("--tui") ? "tui" : "headless";
-  const scenarios = parseScenarios(args.flags.get("--scenarios"));
+  // the timeout scenario always runs last, so a question left on screen can't be mistaken for the next one
+  const scenarios = orderScenarios(parseScenarios(args.flags.get("--scenarios"), args.flags.has("--wait")));
   const timeoutMs = parseTimeout(args.flags.get("--timeout"), 20_000);
+  const waitMs = parseSeconds("--wait", args.flags.get("--wait"), defaultWaitMs());
   const wanted = args.clients.length ? args.clients.map((c) => adapterById(c)!) : ADAPTERS;
   const n = nonce();
   const root = makeRoot(args.flags.has("--keep"));
   const quiet = args.flags.has("--json") || args.flags.has("--markdown");
   const say = (s: string) => { if (!quiet || process.stderr.isTTY) process.stderr.write(s + "\n"); };
 
+  if (scenarios.includes("timeout")) {
+    say(errp.dim(mode === "tui"
+      ? `· timeout scenario: one question is left on screen untouched for up to ${Math.round(waitMs / 1000)} s per client`
+      : `· timeout scenario: waiting up to ${Math.round(waitMs / 1000)} s per client for an answer nobody gives (add --tui to put the question on a screen)`));
+  }
   const runs: ClientRun[] = [];
   for (const ad of wanted) {
     const explicit = args.bins.get(ad.id);
@@ -157,7 +185,7 @@ async function main(argv: string[]): Promise<number> {
     }
     const version = (await versionOf(bin)) ?? "?";
     say(errp.dim(`· ${ad.id} ${version}: running ${mode === "tui" ? "interactive session in tmux" : ad.headlessLabel}…`));
-    const run = await runClient({ adapter: ad, bin, version, mode, scenarios, timeoutMs, nonce: n, root, answer, onStep: (m) => say(errp.dim(`    ${m}`)) });
+    const run = await runClient({ adapter: ad, bin, version, mode, scenarios, timeoutMs, waitMs, nonce: n, root, answer, onStep: (m) => say(errp.dim(`    ${m}`)) });
     if (!args.flags.has("--keep") && !run.problem) { try { fs.rmSync(run.logDir!, { recursive: true, force: true }); } catch { /* ignore */ } run.logDir = undefined; }
     runs.push(run);
   }

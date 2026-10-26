@@ -4,7 +4,7 @@ import fs from "node:fs";
 const j = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 let bad = 0;
 for (const r of j.runs) {
-  const rows = r.results.map((x) => `${x.scenario}=${x.outcome.kind === "answered" ? x.outcome.action : x.outcome.kind}`);
+  const rows = r.results.map((x) => `${x.scenario}=${x.outcome.kind === "answered" ? x.outcome.action : x.outcome.kind}${x.outcome.ms != null ? `(${x.outcome.ms}ms)` : ""}${x.stillOnScreen != null ? (x.stillOnScreen ? ",still-on-screen" : ",taken-down") : ""}`);
   console.log(`${r.client} ${r.version} [${r.mode}] ${r.problem ? "PROBLEM: " + r.problem : rows.join(" ")}`);
   if (r.problem || r.results.some((x) => x.outcome.kind === "not-reached")) bad++;
 }

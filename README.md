@@ -19,6 +19,7 @@ What actually happens depends on how the client was started, and the spec words 
 - **Headless runs answer for the user.** `claude -p` returns `cancel` in 3 to 5 ms. `codex exec` returns `decline` in under 2 ms. Per the spec, `decline` means *the user explicitly said no*. There was no user.
 - **The same Esc gives different words.** In the interactive TUIs, dismissing the question gives `cancel` in Claude Code and in Codex form mode, but `decline` in Codex URL mode. The spec says dismissing without a choice is `cancel`.
 - **`accept` doesn't prove a human either.** A Claude Code `Elicitation` hook can accept in about 20 ms.
+- **Nobody there, nobody answers, for as long as you wait.** Left untouched in the interactive TUI, Claude Code and Codex both kept the question open for the full 60 s and never answered. Only the server's own timeout ended the tool call.
 - **Not advertising is fine, if it's honest.** opencode 1.19.4 doesn't advertise elicitation, and a raw request gets `-32601 Method not found`. Gemini CLI 0.65.0 behaves the same, headless and interactive.
 
 So a server can't treat "the client supports elicitation" as "a person will see this". askwire tells you what each client on your machine does, in one command.
@@ -38,6 +39,7 @@ askwire                         # every supported client found on PATH, headless
 askwire claude codex --tui      # the real interactive TUIs, inside tmux
 askwire --markdown              # a table to paste into an issue
 askwire --json                  # raw results
+askwire claude codex --tui --wait 60   # also leave one question untouched for 60 s
 askwire --strict                # exit 1 if any client answered without a human (CI)
 askwire --bin claude=./node_modules/.bin/claude   # test a specific build
 askwire server --log probe.jsonl                   # just the probe server, add it to any client by hand
@@ -59,40 +61,52 @@ codex 0.164.0  codex (interactive)
   └ SHOWN ON SCREEN
 ```
 
-## Results so far (2026-10-25, Linux)
+The timeout scenario (`--wait`, or `--scenarios all`) sends one more question and presses nothing. Real run, same versions, 2026-10-26:
 
-| client | how it was run | advertises | form | url | unadvertised request |
-|---|---|---|---|---|---|
-| Claude Code 2.1.310 | `claude -p` | form + url | **cancel**, 4 ms | **cancel**, 3 ms | not sent |
-| Claude Code 2.1.310 | interactive, Esc | form + url | cancel, 1.7 s | cancel, 2.0 s | not sent |
-| Codex 0.164.0 | `codex exec` | form + url | **decline**, 3 ms | **decline**, 1 ms | not sent |
-| Codex 0.164.0 | interactive, Esc | form + url | cancel, 1.8 s | **decline**, 2.1 s | not sent |
-| opencode 1.19.4 | `opencode run` | none | not sent | not sent | `-32601` |
-| Gemini CLI 0.65.0 | `gemini -p` | none | not sent | not sent | `-32601`, 3–4 ms |
-| Gemini CLI 0.65.0 | interactive | none | not sent | not sent | `-32601`, 12 ms |
+```
+claude 2.1.310  claude (interactive)
+  │ timeout      silence  no answer within 60 s · on screen after 126 ms, nobody pressed a key, the client kept waiting; still on screen 10 s after the server gave up
+  └ SHOWN ON SCREEN · WAITS FOR A PERSON
 
-Raw logs: run it yourself, or see the JSON in the [docs](https://blackman99.github.io/askwire/docs/#reference). Numbers vary by machine; the answers didn't vary across runs.
+codex 0.164.0  codex (interactive)
+  │ timeout      silence  no answer within 60 s · on screen after 199 ms, nobody pressed a key, the client kept waiting; taken down within 10 s of the server giving up
+  └ SHOWN ON SCREEN · WAITS FOR A PERSON
+```
+
+## Results so far (2026-10-25 and 2026-10-26, Linux)
+
+| client | how it was run | advertises | form | url | unadvertised request | nobody touches it (60 s) |
+|---|---|---|---|---|---|---|
+| Claude Code 2.1.310 | `claude -p` | form + url | **cancel**, 4 ms | **cancel**, 3 ms | not sent | **cancel**, 2 ms |
+| Claude Code 2.1.310 | interactive | form + url | cancel, 1.7 s (Esc) | cancel, 2.0 s (Esc) | not sent | no answer in 60 s |
+| Codex 0.164.0 | `codex exec` | form + url | **decline**, 3 ms | **decline**, 1 ms | not sent | **decline**, 1 ms |
+| Codex 0.164.0 | interactive | form + url | cancel, 1.8 s (Esc) | **decline**, 2.1 s (Esc) | not sent | no answer in 60 s |
+| opencode 1.19.4 | `opencode run` and interactive | none | not sent | not sent | `-32601` | not sent |
+| Gemini CLI 0.65.0 | `gemini -p` | none | not sent | not sent | `-32601`, 3–4 ms | not sent |
+| Gemini CLI 0.65.0 | interactive | none | not sent | not sent | `-32601`, 12 ms | not sent |
+
+Raw logs: run it yourself, or see the JSON in the [docs](https://blackman99.github.io/askwire/docs/#reference). Numbers vary by machine; the answers didn't vary across runs. The untouched question was measured 6 times per interactive client (3 with `--wait 60` after the form and url questions, 2 with only the timeout question at 60 s, 1 at 30 s): no answer every time. What happened to the stale question once the probe gave up did vary. Codex took it down every time. Claude Code took it down when it came after other questions in the same turn (3 of 3) and left it on screen when it was the only question (3 of 3).
 
 ## How it works
 
 1. askwire starts a probe MCP server (stdio). Each of its tools sends exactly one `elicitation/create` carrying a nonce like `AW-4FJ7`.
 2. It starts a local stand-in model that speaks the Anthropic Messages, OpenAI Responses, Chat Completions and Gemini `generateContent` formats. It does one thing: call the next probe tool, then stop.
 3. Each client runs in a throwaway `HOME` / `CODEX_HOME` / XDG directory, pointed at the stand-in through its documented custom-endpoint settings.
-4. Headless mode runs `claude -p`, `codex exec`, `opencode run`, `gemini -p`. `--tui` runs the interactive client in tmux, watches the screen until the nonce appears (proof the question was drawn) and presses Esc.
+4. Headless mode runs `claude -p`, `codex exec`, `opencode run`, `gemini -p`. `--tui` runs the interactive client in tmux, watches the screen until the nonce appears (proof the question was drawn) and presses Esc. For the timeout scenario it presses nothing, waits out `--wait`, then checks for 10 s whether the client takes the question down.
 5. The probe records what was advertised at `initialize`, the answer, the latency, whether the nonce was on screen, and any JSON-RPC error.
 
 ## What your server should do
 
 - Treat only `accept` with the content you asked for as consent.
 - Treat `decline` and `cancel` the same: do not proceed. Clients don't use them consistently.
-- Put a timeout on the request and treat no answer as no.
+- Put a timeout on the request and treat no answer as no. Interactive clients wait as long as you do.
 - If the action matters, log who accepted. Hooks can accept too.
 
 The longer version, with the spec wording and how it was measured: [Decline vs cancel, and who is actually answering](https://blackman99.github.io/askwire/blog/decline-vs-cancel/) ([中文](https://blackman99.github.io/askwire/blog/zh/decline-vs-cancel/)).
 
 ## Not covered yet
 
-Cursor agent, Gemini CLI, Copilot CLI and Kiro CLI adapters, Streamable HTTP, elicitation inside MCP Tasks, and scripted "accept with a value" in the TUI. See [ROADMAP.md](ROADMAP.md). Tested on Linux; unit tests also run on macOS; Windows is untested.
+Cursor agent, Copilot CLI and Kiro CLI adapters, Streamable HTTP, elicitation inside MCP Tasks, and scripted "accept with a value" in the TUI. See [ROADMAP.md](ROADMAP.md). Tested on Linux; unit tests also run on macOS; Windows is untested.
 
 ## Contributing
 

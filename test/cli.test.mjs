@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { parseArgs, parseScenarios } from "../dist/cli.js";
+import { parseArgs, parseScenarios, orderScenarios, parseSeconds, defaultWaitMs } from "../dist/cli.js";
 import { renderText, renderMarkdown } from "../dist/report.js";
 
 const cli = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
@@ -25,6 +25,30 @@ test("parseScenarios validates names", () => {
   assert.deepEqual(parseScenarios(undefined), ["form", "url", "unadvertised"]);
   assert.deepEqual(parseScenarios("url, form"), ["url", "form"]);
   assert.throws(() => parseScenarios("forms"), /unknown scenario "forms"/);
+  assert.deepEqual(parseScenarios("all"), ["form", "url", "unadvertised", "timeout"]);
+  assert.deepEqual(parseScenarios("form,form"), ["form"]);
+  assert.throws(() => parseScenarios(" , "), /empty/);
+  assert.throws(() => parseScenarios(true), /needs a value/);
+});
+
+test("--wait adds the timeout scenario, refuses a list without it, and timeout always runs last", () => {
+  assert.deepEqual(parseScenarios(undefined, true), ["form", "url", "unadvertised", "timeout"]);
+  assert.deepEqual(parseScenarios("timeout", true), ["timeout"]);
+  assert.throws(() => parseScenarios("form", true), /--scenarios form,timeout/);
+  assert.deepEqual(orderScenarios(["timeout", "url", "form"]), ["url", "form", "timeout"]);
+  assert.equal(parseSeconds("--wait", "45", 1), 45000);
+  assert.equal(parseSeconds("--wait", undefined, 60000), 60000);
+  assert.throws(() => parseSeconds("--wait", "soon", 1), /--wait must be a number of seconds/);
+  assert.throws(() => parseSeconds("--wait", "0", 1), /between 0 and 3600/);
+  assert.equal(defaultWaitMs({}), 60000);
+  assert.equal(defaultWaitMs({ CI: "true" }), 30000);
+  assert.equal(defaultWaitMs({ CI: "false" }), 60000);
+});
+
+test("--wait with a scenario list that leaves timeout out is a usage error", () => {
+  const r = spawnSync(process.execPath, [cli, "--wait", "5", "--scenarios", "form"], { encoding: "utf8" });
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /--wait only applies to the timeout scenario/);
 });
 
 test("usage errors exit 2 with a hint", () => {
@@ -36,7 +60,9 @@ test("usage errors exit 2 with a hint", () => {
 
 test("--version and --help", () => {
   assert.equal(execFileSync(process.execPath, [cli, "--version"], { encoding: "utf8" }).trim(), "0.1.0");
-  assert.match(execFileSync(process.execPath, [cli, "--help"], { encoding: "utf8" }), /--tui/);
+  const help = execFileSync(process.execPath, [cli, "--help"], { encoding: "utf8" });
+  assert.match(help, /--tui/);
+  assert.match(help, /--wait <seconds>/);
 });
 
 test("missing explicit binary is reported, not crashed", () => {
@@ -68,4 +94,26 @@ test("markdown report is a pipe table", () => {
   const m = renderMarkdown(runs, { nonce: "AW-TEST", when: "now" });
   assert.match(m, /^\| client \| command \| advertises \| scenario \| answer \|$/m);
   assert.equal(m.split("\n").filter((l) => l.startsWith("| claude")).length, 1);
+});
+
+test("text report: timeout scenario rows say what was measured", () => {
+  const tuiRuns = [
+    { client: "claude", version: "2.1.310", mode: "tui", command: "claude (interactive)", advertised: { form: true, url: true, raw: {} },
+      results: [{ scenario: "timeout", seen: true, seenAfterMs: 103, escPressed: false, stillOnScreen: true, outcome: { kind: "timeout", ms: 60012, limitMs: 60000 } }] },
+    { client: "codex", version: "0.164.0", mode: "tui", command: "codex (interactive)", advertised: { form: true, url: true, raw: {} },
+      results: [{ scenario: "timeout", seen: true, seenAfterMs: 201, escPressed: false, stillOnScreen: false, outcome: { kind: "timeout", ms: 60008, limitMs: 60000 } }] },
+    { client: "x", version: "1", mode: "tui", command: "x", advertised: { form: true, url: false, raw: {} },
+      results: [{ scenario: "timeout", seen: true, seenAfterMs: 50, escPressed: false, outcome: { kind: "answered", action: "cancel", ms: 30000 } }] },
+  ];
+  const t = renderText(tuiRuns, { color: false, nonce: "AW-TEST", when: "now" });
+  assert.match(t, /timeout\s+silence\s+no answer within 60 s · on screen after 103 ms, nobody pressed a key, the client kept waiting; still on screen 10 s after the server gave up/);
+  assert.match(t, /taken down within 10 s of the server giving up/);
+  assert.match(t, /WAITS FOR A PERSON/);
+  assert.match(t, /cancel\s+in 30\.0 s · on screen after 50 ms, nobody pressed a key, the client answered by itself/);
+  assert.match(t, /claude and codex kept the question open for 60 s with nobody there/);
+  assert.match(t, /x answered a question nobody touched/);
+  assert.match(t, /claude still showed the question 10 s after your server stopped waiting/);
+  const headless = renderText([{ ...tuiRuns[0], mode: "headless", results: [{ scenario: "timeout", outcome: { kind: "timeout", ms: 5000, limitMs: 5000 } }] }], { color: false, nonce: "AW-TEST", when: "now" });
+  assert.match(headless, /no answer within 5 s · no terminal and no answer/);
+  assert.match(headless, /QUESTION NEVER ANSWERED/);
 });
