@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Re-measured Claude Code 2.1.311 (2026-10-27, Linux, stand-in model only): same answers as 2.1.310. Headless `cancel` in 2-4 ms for form, url and timeout; in `--tui` the question is drawn and Esc gives `cancel`, and left untouched it gets no answer in 60 s.
 - Timeout scenario: one form question that nobody touches. Opt in with `--wait <seconds>` (default 60, 30 when `CI` is set) or `--scenarios timeout` / `--scenarios all`; it always runs last. In `--tui` nothing is pressed, and askwire records whether the question was on screen and whether the client takes it down within 10 s after the probe gives up (`stillOnScreen`).
 - New outcomes and verdicts: `timeout` carries the bound that applied (`limitMs`); `abandoned` when the client cancels the tool call while its question is open; `SHOWN ON SCREEN · WAITS FOR A PERSON`; `GIVES UP · CANCELS THE TOOL CALL`.
 - A TUI answer now only counts as a person's if askwire pressed a key for it. An answer to a question nobody touched counts as answering without a human.
