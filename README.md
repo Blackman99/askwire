@@ -73,19 +73,19 @@ codex 0.164.0  codex (interactive)
   └ SHOWN ON SCREEN · WAITS FOR A PERSON
 ```
 
-## Results so far (2026-10-25 and 2026-10-26, Linux)
+## Results so far (2026-10-25 to 2026-10-27, Linux)
 
 | client | how it was run | advertises | form | url | unadvertised request | nobody touches it (60 s) |
 |---|---|---|---|---|---|---|
-| Claude Code 2.1.310 | `claude -p` | form + url | **cancel**, 4 ms | **cancel**, 3 ms | not sent | **cancel**, 2 ms |
-| Claude Code 2.1.310 | interactive | form + url | cancel, 1.7 s (Esc) | cancel, 2.0 s (Esc) | not sent | no answer in 60 s |
+| Claude Code 2.1.310, 2.1.311 | `claude -p` | form + url | **cancel**, 4 ms | **cancel**, 3 ms | not sent | **cancel**, 2 ms |
+| Claude Code 2.1.310, 2.1.311 | interactive | form + url | cancel, 1.7 s (Esc) | cancel, 2.0 s (Esc) | not sent | no answer in 60 s |
 | Codex 0.164.0 | `codex exec` | form + url | **decline**, 3 ms | **decline**, 1 ms | not sent | **decline**, 1 ms |
 | Codex 0.164.0 | interactive | form + url | cancel, 1.8 s (Esc) | **decline**, 2.1 s (Esc) | not sent | no answer in 60 s |
 | opencode 1.19.4 | `opencode run` and interactive | none | not sent | not sent | `-32601` | not sent |
 | Gemini CLI 0.65.0 | `gemini -p` | none | not sent | not sent | `-32601`, 3–4 ms | not sent |
 | Gemini CLI 0.65.0 | interactive | none | not sent | not sent | `-32601`, 12 ms | not sent |
 
-Raw logs: run it yourself, or see the JSON in the [docs](https://blackman99.github.io/askwire/docs/#reference). Numbers vary by machine; the answers didn't vary across runs. The untouched question was measured 6 times per interactive client (3 with `--wait 60` after the form and url questions, 2 with only the timeout question at 60 s, 1 at 30 s): no answer every time. What happened to the stale question once the probe gave up did vary. Codex took it down every time. Claude Code took it down when it came after other questions in the same turn (3 of 3) and left it on screen when it was the only question (3 of 3).
+Raw logs: run it yourself, or see the JSON in the [docs](https://blackman99.github.io/askwire/docs/#reference). Numbers vary by machine; the answers didn't vary across runs. The untouched question was measured 6 times per interactive client (3 with `--wait 60` after the form and url questions, 2 with only the timeout question at 60 s, 1 at 30 s): no answer every time. What happened to the stale question once the probe gave up did vary. Codex took it down every time. Claude Code took it down when it came after other questions in the same turn (3 of 3) and left it on screen when it was the only question (3 of 3). Claude Code 2.1.311 (released 2026-10-27 CST) was re-measured the same day with the full set headless and `--tui` plus the timeout question alone: every answer, latency band and the on-screen behaviour matched 2.1.310.
 
 ## How it works
 
