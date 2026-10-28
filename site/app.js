@@ -98,14 +98,14 @@
   /* ---------------- replay data (real runs, 2026-10-25) ---------------- */
   const RUNS = {
     headless: {
-      claude: { cmd: "-P", ans: "cancel", ms: "4 ms", note: "answered by the client · curtain stayed down", tone: "" },
+      claude: { cmd: "-P", ans: "cancel", ms: "5 ms", note: "answered by the client · curtain stayed down", tone: "" },
       codex: { cmd: "EXEC", ans: "decline", ms: "2 ms", note: "spec: decline = the user said no", tone: "" },
       opencode: { cmd: "RUN", ans: "not advertised", ms: "", note: "nothing sent · -32601 if you try", tone: "no" },
       gemini: { cmd: "-P", ans: "not advertised", ms: "", note: "nothing sent · -32601 if you try", tone: "no" },
     },
     tui: {
       claude: { cmd: "INTERACTIVE", ans: "cancel", ms: "1.8 s", note: "on screen in ~120 ms · then Esc", tone: "ok" },
-      codex: { cmd: "INTERACTIVE", ans: "decline", ms: "2.1 s", note: "url prompt, Esc · spec says cancel", tone: "warn" },
+      codex: { cmd: "INTERACTIVE", ans: "decline", ms: "2.0 s", note: "url prompt, Esc · spec says cancel", tone: "warn" },
       opencode: { cmd: "INTERACTIVE", ans: "not advertised", ms: "", note: "nothing sent · -32601 if you try", tone: "no" },
       gemini: { cmd: "INTERACTIVE", ans: "not advertised", ms: "", note: "nothing sent · -32601 if you try", tone: "no" },
     },
