@@ -76,7 +76,7 @@
         <div class="panel">
           <span class="lamp red"></span><span class="lamp green"></span>
           <p class="plate">CLAUDE<span id="claude-cmd">-P</span></p>
-          <p class="ver">2.1.311 · form + url</p>
+          <p class="ver">2.1.312 · form + url</p>
         </div>
         <p class="answer" id="claude-ans">&nbsp;</p>
       </article>
@@ -85,7 +85,7 @@
         <div class="panel">
           <span class="lamp red"></span><span class="lamp green"></span>
           <p class="plate">CODEX<span id="codex-cmd">EXEC</span></p>
-          <p class="ver">0.164.0 · form + url</p>
+          <p class="ver">0.165.0 · form + url</p>
         </div>
         <p class="answer" id="codex-ans">&nbsp;</p>
       </article>
@@ -162,9 +162,9 @@
     <h2>decline or cancel? Depends who you ask</h2>
     <p>The spec gives the three answers distinct meanings: <b>accept</b> means the user submitted, <b>decline</b> means the user explicitly said no, <b>cancel</b> means they dismissed it without choosing. Same probe, five situations:</p>
     <div class="sheet" role="table" aria-label="What each client answered">
-      <div role="row" class="hd"><span role="columnheader">situation</span><span role="columnheader">claude 2.1.311</span><span role="columnheader">codex 0.164.0</span><span role="columnheader">spec says</span></div>
-      <div role="row"><span role="cell">headless, form</span><span role="cell"><b class="r">cancel</b> 4 ms</span><span role="cell"><b class="r">decline</b> 2 ms</span><span role="cell">nobody was asked: no answer is "right"</span></div>
-      <div role="row"><span role="cell">headless, url</span><span role="cell"><b class="r">cancel</b> 4 ms</span><span role="cell"><b class="r">decline</b> &lt;1 ms</span><span role="cell">same</span></div>
+      <div role="row" class="hd"><span role="columnheader">situation</span><span role="columnheader">claude 2.1.312</span><span role="columnheader">codex 0.165.0</span><span role="columnheader">spec says</span></div>
+      <div role="row"><span role="cell">headless, form</span><span role="cell"><b class="r">cancel</b> 5 ms</span><span role="cell"><b class="r">decline</b> 2 ms</span><span role="cell">nobody was asked: no answer is "right"</span></div>
+      <div role="row"><span role="cell">headless, url</span><span role="cell"><b class="r">cancel</b> 2 ms</span><span role="cell"><b class="r">decline</b> 1 ms</span><span role="cell">same</span></div>
       <div role="row"><span role="cell">on screen, Esc, form</span><span role="cell"><b>cancel</b></span><span role="cell"><b>cancel</b></span><span role="cell">cancel</span></div>
       <div role="row"><span role="cell">on screen, Esc, url</span><span role="cell"><b>cancel</b></span><span role="cell"><b class="y">decline</b></span><span role="cell">cancel</span></div>
       <div role="row"><span role="cell">on screen, nobody touches it</span><span role="cell"><b>no answer</b> in 60 s</span><span role="cell"><b>no answer</b> in 60 s</span><span role="cell">nothing, until your timeout</span></div>
@@ -201,7 +201,7 @@ if (r.action !== "accept" || !r.content?.confirm) {
 </main>
 
 <footer class="foot">
-  <p>Measured 2026-10-25 to 2026-10-27 · Claude Code 2.1.310 and 2.1.311 · Codex CLI 0.164.0 · opencode 1.19.4 · Gemini CLI 0.65.0. A daily CI run re-measures the latest releases.</p>
+  <p>Measured 2026-10-25 to 2026-10-28 · Claude Code 2.1.310 to 2.1.312 · Codex CLI 0.164.0 and 0.165.0 · opencode 1.19.4 · Gemini CLI 0.65.0. A daily CI run re-measures the latest releases.</p>
   <p><a href="https://github.com/Blackman99/askwire">github.com/Blackman99/askwire</a> · MIT</p>
 </footer>
 <script src="app.js" defer></script>
