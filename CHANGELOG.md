@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Re-measured opencode 1.19.5 (2026-10-28, Linux, stand-in model only): same as 1.19.4. It does not advertise elicitation in `opencode run` or interactive, so nothing is sent, and a raw `elicitation/create` gets `-32601 Method not found`.
 - Re-measured Claude Code 2.1.312 and Codex 0.165.0 (2026-10-28, Linux, stand-in model only): same answers as before. Headless, `claude -p` gives `cancel` in 2-5 ms and `codex exec` gives `decline` in 1-2 ms for form, url and timeout; in `--tui` the question is drawn and Esc gives `cancel` (Codex url: `decline`), and left untouched it gets no answer in 60 s.
 - Landing replay: restored to the original 2026-10-25 logs (Claude Code 2.1.310 / Codex 0.164.0); #7 had briefly changed two replay numbers to 2.1.312 / 0.165.0 values despite saying it did not.
 - Re-measured Claude Code 2.1.311 (2026-10-27, Linux, stand-in model only): same answers as 2.1.310. Headless `cancel` in 2-4 ms for form, url and timeout; in `--tui` the question is drawn and Esc gives `cancel`, and left untouched it gets no answer in 60 s.
