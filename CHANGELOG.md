@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 - Re-measured Claude Code 2.1.312 and Codex 0.165.0 (2026-10-28, Linux, stand-in model only): same answers as before. Headless, `claude -p` gives `cancel` in 2-5 ms and `codex exec` gives `decline` in 1-2 ms for form, url and timeout; in `--tui` the question is drawn and Esc gives `cancel` (Codex url: `decline`), and left untouched it gets no answer in 60 s.
+- Landing replay: restored to the original 2026-10-25 logs (Claude Code 2.1.310 / Codex 0.164.0); #7 had briefly changed two replay numbers to 2.1.312 / 0.165.0 values despite saying it did not.
 - Re-measured Claude Code 2.1.311 (2026-10-27, Linux, stand-in model only): same answers as 2.1.310. Headless `cancel` in 2-4 ms for form, url and timeout; in `--tui` the question is drawn and Esc gives `cancel`, and left untouched it gets no answer in 60 s.
 - Timeout scenario: one form question that nobody touches. Opt in with `--wait <seconds>` (default 60, 30 when `CI` is set) or `--scenarios timeout` / `--scenarios all`; it always runs last. In `--tui` nothing is pressed, and askwire records whether the question was on screen and whether the client takes it down within 10 s after the probe gives up (`stillOnScreen`).
 - New outcomes and verdicts: `timeout` carries the bound that applied (`limitMs`); `abandoned` when the client cancels the tool call while its question is open; `SHOWN ON SCREEN · WAITS FOR A PERSON`; `GIVES UP · CANCELS THE TOOL CALL`.
