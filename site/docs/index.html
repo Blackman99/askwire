@@ -182,7 +182,7 @@ tail -f /tmp/askwire.jsonl</pre>
     <details><summary>The TUI run says the question never appeared.</summary>
       <p>Run again with <code>--keep</code> and look at <code>screen-*.txt</code> in the run directory: it is the exact terminal text askwire saw. Common causes are a first-run dialog the adapter does not know yet (new client versions add them) and a very slow machine; try <code>--timeout 60</code>.</p></details>
     <details><summary>How fresh are the numbers on the homepage?</summary>
-      <p>They come from runs on 2026-10-25 to 2026-10-28 with Claude Code 2.1.310 to 2.1.312, Codex CLI 0.164.0 and 0.165.0, opencode 1.19.4 and Gemini CLI 0.65.0, reproduced on a GitHub Actions runner. A <a href="https://github.com/Blackman99/askwire/actions/workflows/ci.yml">daily CI job</a> installs the latest releases and runs askwire again, headless, <code>--tui</code> and the untouched question at 30 s, with the reports in the job summary.</p></details>
+      <p>They come from runs on 2026-10-25 to 2026-10-28 with Claude Code 2.1.310 to 2.1.312, Codex CLI 0.164.0 and 0.165.0, opencode 1.19.4 and 1.19.5, and Gemini CLI 0.65.0, reproduced on a GitHub Actions runner. A <a href="https://github.com/Blackman99/askwire/actions/workflows/ci.yml">daily CI job</a> installs the latest releases and runs askwire again, headless, <code>--tui</code> and the untouched question at 30 s, with the reports in the job summary.</p></details>
   </section>
 </main>
 </div>
